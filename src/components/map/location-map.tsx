@@ -3,7 +3,7 @@
 import { Map, MapMarker, useKakaoLoader } from "react-kakao-maps-sdk";
 import { ExternalLink } from "lucide-react";
 
-const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ?? "";
+const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "";
 
 /** 단일 위치 지도 (마을홈 '오시는 길'). 키 없으면 좌표+외부링크 폴백. */
 export function LocationMap({

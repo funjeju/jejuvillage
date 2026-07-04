@@ -91,6 +91,28 @@ export const villageInfoInputSchema = z.object({
 });
 export type VillageInfoInput = z.infer<typeof villageInfoInputSchema>;
 
+/** 마을 생성 (플랫폼 어드민 P1) */
+export const villageCreateSchema = z.object({
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "slug 은 영소문자·숫자·하이픈만 가능해요."),
+  name: z.string().trim().min(1, "마을명을 입력해 주세요.").max(40),
+  region: z.string().trim().min(1, "지역을 입력해 주세요.").max(40),
+  oneLiner: z.string().trim().max(120).default(""),
+  lat: z.coerce.number().min(33).max(34),
+  lng: z.coerce.number().min(126).max(127),
+});
+export type VillageCreateInput = z.infer<typeof villageCreateSchema>;
+
+/** 운영자 초대 (플랫폼 어드민 P1) */
+export const inviteAdminSchema = z.object({
+  villageId: z.string().min(1),
+  email: z.string().trim().email("올바른 이메일을 입력해 주세요."),
+});
+export type InviteAdminInput = z.infer<typeof inviteAdminSchema>;
+
 /** 테마·마스코트·음악 설정 (A5) */
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "HEX 색상 형식이어야 합니다.");
 export const themeInputSchema = z.object({

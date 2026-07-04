@@ -15,6 +15,7 @@
 |------|------|
 | 공개 | 메인(지도+실시간피드+추천체험) `/`, 마을찾기 `/villages`, 마을홈 템플릿 `/v/{slug}`, 상품상세 `/v/{slug}/product/{id}`, 예약신청 `.../book`, 통합피드 `/feed` |
 | 운영자 | 대시보드 `/admin`, 소식발행 `/admin/feed`, 체험상품 `/admin/products`, 예약관리 `/admin/bookings`, 테마·마스코트·음악 `/admin/theme`, 마을정보 `/admin/village` |
+| 플랫폼 | 마을 계정 관리·생성·운영자 초대·게시토글 `/platform/villages`, 전체 통계 `/platform/stats`, 템플릿 `/platform/templates` |
 | 인증 | 로그인 `/login` (Firebase Auth + httpOnly 세션쿠키, 역할기반 접근제어) |
 
 마을 홈(`/v/{slug}`)은 **데이터 주입형 템플릿**입니다 — 하드코딩 없이 DB 데이터로 렌더되고, 빈 섹션은 자동 숨김, 테마 색상은 마을별로 스와핑됩니다.
@@ -27,7 +28,7 @@
 
 - `NEXT_PUBLIC_FIREBASE_*` — Firebase 콘솔 > 프로젝트 설정 > 웹 앱
 - `FIREBASE_ADMIN_*` — 서비스 계정 JSON (서버 전용)
-- `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` — Kakao Developers > JavaScript 키 (Web 플랫폼에 `http://localhost:3000` 도메인 등록)
+- `NEXT_PUBLIC_KAKAO_JS_KEY` — Kakao Developers > JavaScript 키 (Web 플랫폼에 `http://localhost:3000` 도메인 등록)
 
 > 키가 없어도 앱은 실행됩니다(빈 상태 + 지도 폴백). 키를 넣으면 실데이터·지도가 활성화됩니다.
 
@@ -73,7 +74,15 @@ pnpm deploy:rules   # firestore.rules, firestore.indexes.json, storage.rules
 | `pnpm lint` | ESLint |
 | `pnpm emulators` | Firebase 에뮬레이터(auth/firestore/storage) |
 | `pnpm seed` | 조수리 샘플 데이터 시드 |
-| `pnpm deploy:rules` | 보안규칙·인덱스 배포 |
+| `pnpm grant:platform <email> [pw]` | 이메일을 플랫폼 관리자로 승격 |
+| `pnpm deploy:rules` | 보안규칙·인덱스 배포 (firebase CLI 로그인 필요) |
+| `pnpm deploy:rules:sa` | 서비스계정 토큰으로 Firestore 규칙만 배포 (CLI 권한 없을 때) |
+
+## Firebase 콘솔 준비 (최초 1회)
+
+- **Authentication** > 로그인 방법 > **이메일/비밀번호 사용 설정** (로그인 필수)
+- **Storage** > **시작하기** (사진·음악 업로드에 필요 — 미설정 시 업로드만 실패, 공개 페이지는 정상)
+- 초기 계정: 마을 운영자 `admin@josuri.kr`/`josuri1234`, 플랫폼 관리자는 `pnpm grant:platform` 로 생성
 
 ## 아키텍처 메모
 

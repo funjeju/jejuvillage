@@ -1,6 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
-import { paths } from "@/lib/firebase/paths";
+import { paths, collectionGroups } from "@/lib/firebase/paths";
 import { toMillis, toMillisOrNull } from "@/lib/firebase/normalize";
 import type {
   Village,
@@ -176,6 +176,78 @@ export function getPublishedVillageSummaries(): Promise<VillageSummary[]> {
     );
     return summaries;
   }, []);
+}
+
+/** 플랫폼 어드민: 전체 마을 (상태 무관, 최신순) */
+export function getAllVillages(): Promise<Village[]> {
+  return safe(async () => {
+    const snap = await adminDb()
+      .collection(paths.villages)
+      .orderBy("createdAt", "desc")
+      .get();
+    return snap.docs.map((d) => mapVillage(d.id, d.data()));
+  }, []);
+}
+
+export interface PlatformStats {
+  villages: number;
+  published: number;
+  draft: number;
+  posts: number;
+  products: number;
+  bookings: number;
+  requestedBookings: number;
+}
+
+/** 플랫폼 어드민: 전체 통계 (P3) */
+export function getPlatformStats(): Promise<PlatformStats> {
+  const empty: PlatformStats = {
+    villages: 0,
+    published: 0,
+    draft: 0,
+    posts: 0,
+    products: 0,
+    bookings: 0,
+    requestedBookings: 0,
+  };
+  return safe(async () => {
+    const db = adminDb();
+    const villagesSnap = await db.collection(paths.villages).get();
+    let published = 0;
+    let draft = 0;
+    villagesSnap.docs.forEach((d) =>
+      d.data().status === "published" ? published++ : draft++
+    );
+
+    const [posts, products, bookings] = await Promise.all([
+      db.collectionGroup(collectionGroups.feedPosts).count().get(),
+      db.collectionGroup(collectionGroups.products).count().get(),
+      db.collectionGroup("bookings").count().get(),
+    ]);
+
+    // status 필터 count 는 인덱스가 필요할 수 있어 개별 폴백
+    let requestedBookings = 0;
+    try {
+      const r = await db
+        .collectionGroup("bookings")
+        .where("status", "==", "REQUESTED")
+        .count()
+        .get();
+      requestedBookings = r.data().count;
+    } catch {
+      /* 인덱스 미배포 시 0 */
+    }
+
+    return {
+      villages: villagesSnap.size,
+      published,
+      draft,
+      posts: posts.data().count,
+      products: products.data().count,
+      bookings: bookings.data().count,
+      requestedBookings,
+    };
+  }, empty);
 }
 
 export function getVillageById(villageId: string): Promise<Village | null> {

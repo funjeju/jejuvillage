@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { VillageSummary } from "@/lib/types";
 
 const JEJU_CENTER = { lat: 33.38, lng: 126.55 };
-const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ?? "";
+const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "";
 
 /**
  * 인터랙티브 제주 지도 (기획서 S1 핵심).

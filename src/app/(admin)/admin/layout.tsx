@@ -17,6 +17,11 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
+  // 플랫폼 어드민은 전용 콘솔로 (관리 마을이 없어도 /platform 사용)
+  if (user.role === "platform_admin" && user.managedVillages.length === 0) {
+    redirect("/platform");
+  }
+
   const villageId = user.managedVillages[0];
   const village = villageId ? await getVillageById(villageId) : null;
 
