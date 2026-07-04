@@ -8,6 +8,39 @@
  */
 
 export type Role = "guest" | "village_admin" | "platform_admin";
+
+/** 마을 홈 섹션(모듈) 키 — 빌더에서 재배치/삭제 대상 */
+export type SectionKey =
+  | "hero"
+  | "story"
+  | "feed"
+  | "products"
+  | "mascot"
+  | "location";
+
+export interface SectionLayout {
+  key: SectionKey;
+  enabled: boolean;
+}
+
+/** 기본 레이아웃(마을 미설정 시) */
+export const DEFAULT_LAYOUT: SectionLayout[] = [
+  { key: "hero", enabled: true },
+  { key: "story", enabled: true },
+  { key: "feed", enabled: true },
+  { key: "products", enabled: true },
+  { key: "mascot", enabled: true },
+  { key: "location", enabled: true },
+];
+
+export const SECTION_META: Record<SectionKey, { label: string; desc: string; fixed?: boolean }> = {
+  hero: { label: "대표 히어로", desc: "대표 이미지 + 마을명 + 한줄 소개", fixed: true },
+  story: { label: "마을 이야기", desc: "역사·설화·자원 스토리" },
+  feed: { label: "소식 피드", desc: "실시간 사진 소식" },
+  products: { label: "체험상품", desc: "예약 가능한 체험 카드" },
+  mascot: { label: "마스코트", desc: "마을 캐릭터 소개" },
+  location: { label: "오시는 길", desc: "지도 + 주소" },
+};
 export type PublishStatus = "draft" | "published";
 export type BookingStatus = "REQUESTED" | "CONFIRMED" | "REJECTED" | "CANCELED";
 export type FeedVisibility = "village_only" | "global";
@@ -30,6 +63,8 @@ export interface Village {
   seasonTag?: string | null;
   seasonFrom?: number | null;
   seasonTo?: number | null;
+  /** 홈 섹션 순서·활성 (빌더 설정). 없으면 DEFAULT_LAYOUT */
+  layout?: SectionLayout[] | null;
   createdAt: number;
   updatedAt: number;
 }

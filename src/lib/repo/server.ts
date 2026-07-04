@@ -49,6 +49,7 @@ function mapVillage(id: string, d: DocumentData): Village {
     seasonTag: d.seasonTag ?? null,
     seasonFrom: toMillisOrNull(d.seasonFrom),
     seasonTo: toMillisOrNull(d.seasonTo),
+    layout: d.layout ?? null,
     createdAt: toMillis(d.createdAt),
     updatedAt: toMillis(d.updatedAt),
   };

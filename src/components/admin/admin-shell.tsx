@@ -5,10 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
+  Wand2,
   Camera,
   Package,
   CalendarCheck,
-  Palette,
   Home,
   LogOut,
   ExternalLink,
@@ -25,10 +25,10 @@ import {
 
 const NAV = [
   { href: "/admin", label: "대시보드", icon: LayoutDashboard, exact: true },
+  { href: "/admin/homepage", label: "홈페이지 만들기", icon: Wand2 },
   { href: "/admin/feed", label: "소식 발행", icon: Camera },
   { href: "/admin/products", label: "체험상품", icon: Package },
   { href: "/admin/bookings", label: "예약 관리", icon: CalendarCheck },
-  { href: "/admin/theme", label: "테마·마스코트", icon: Palette },
   { href: "/admin/village", label: "마을 정보", icon: Home },
 ];
 

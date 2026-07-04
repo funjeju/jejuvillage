@@ -234,6 +234,17 @@ export async function updateBookingStatus(
 
 // ── 마을 기본정보(A6) ────────────────────────────────────────────────────
 
+/** 홈 섹션 레이아웃 저장 (빌더) */
+export async function updateVillageLayout(
+  villageId: string,
+  layout: import("@/lib/types").SectionLayout[]
+) {
+  await updateDoc(doc(clientDb(), paths.village(villageId)), {
+    layout,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 /** 마을 홈페이지 게시 상태 토글 (운영자 자가 게시) */
 export async function updateVillageStatus(
   villageId: string,
@@ -282,6 +293,57 @@ export async function saveTheme(villageId: string, input: ThemeInput) {
     { villageId, ...input },
     { merge: true }
   );
+}
+
+/** 테마 부분 저장 (빌더 색상/마스코트 등 일부 필드만) */
+export async function saveThemePartial(
+  villageId: string,
+  partial: Record<string, unknown>
+) {
+  await setDoc(
+    doc(clientDb(), paths.themeDoc(villageId)),
+    { villageId, ...partial },
+    { merge: true }
+  );
+}
+
+/** AI 자동 구성 결과를 마을에 반영 (한줄소개 + 스토리 + 마스코트/강조색) */
+export async function applyGeneratedHomepage(
+  villageId: string,
+  data: {
+    oneLiner: string;
+    stories: { sectionKey: string; title: string; body: string }[];
+    mascotName: string;
+    mascotDesc: string;
+    colorAccent: string;
+  }
+) {
+  const db = clientDb();
+  if (data.oneLiner) {
+    await updateDoc(doc(db, paths.village(villageId)), {
+      oneLiner: data.oneLiner,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  // 스토리: sectionKey 를 문서 id 로 덮어쓰기
+  await Promise.all(
+    data.stories.map((s, i) =>
+      setDoc(doc(db, `${paths.stories(villageId)}/${s.sectionKey}`), {
+        villageId,
+        sectionKey: s.sectionKey,
+        title: s.title,
+        body: s.body,
+        order: i + 1,
+      })
+    )
+  );
+  const themePartial: Record<string, unknown> = {};
+  if (data.mascotName) themePartial.mascotName = data.mascotName;
+  if (data.mascotDesc) themePartial.mascotDesc = data.mascotDesc;
+  if (data.colorAccent) themePartial.colorAccent = data.colorAccent;
+  if (Object.keys(themePartial).length) {
+    await saveThemePartial(villageId, themePartial);
+  }
 }
 
 export async function getThemeOnce(villageId: string): Promise<VillageTheme | null> {

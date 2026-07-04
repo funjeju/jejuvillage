@@ -16,6 +16,7 @@
     "deploy:storage:sa": "node --env-file=.env.local scripts/deploy-storage-rules.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "clsx": "^2.1.1",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.1.0",

@@ -133,7 +133,7 @@ export function HomepagePanel() {
           <p className="text-xs font-semibold text-ink-500 mb-2">홈페이지 완성 체크리스트</p>
           <div className="flex flex-wrap gap-2">
             <StepLink href="/admin/village" label="① 마을 정보" />
-            <StepLink href="/admin/theme" label="② 테마·마스코트" />
+            <StepLink href="/admin/homepage" label="② 홈페이지 만들기" />
             <StepLink href="/admin/feed" label="③ 소식 올리기" />
             <StepLink href="/admin/products" label="④ 체험상품" />
           </div>
