@@ -234,6 +234,28 @@ export async function updateBookingStatus(
 
 // ── 마을 기본정보(A6) ────────────────────────────────────────────────────
 
+/** 마을 홈페이지 게시 상태 토글 (운영자 자가 게시) */
+export async function updateVillageStatus(
+  villageId: string,
+  status: "draft" | "published"
+) {
+  await updateDoc(doc(clientDb(), paths.village(villageId)), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 마을 문서 실시간 구독 (홈페이지 상태 패널용) */
+export function listenVillage(
+  villageId: string,
+  cb: (data: { status: "draft" | "published"; name: string } | null) => void
+): Unsubscribe {
+  return onSnapshot(doc(clientDb(), paths.village(villageId)), (snap) => {
+    const d = snap.data();
+    cb(d ? { status: d.status ?? "draft", name: d.name ?? "" } : null);
+  });
+}
+
 export async function updateVillageInfo(
   villageId: string,
   input: {

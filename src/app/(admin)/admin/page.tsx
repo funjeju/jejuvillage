@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Camera, Package, CalendarCheck, ArrowRight } from "lucide-react";
 import { useAdmin } from "@/lib/admin/admin-context";
 import { PageTitle, StatCard, Panel } from "@/components/admin/ui";
+import { HomepagePanel } from "@/components/admin/homepage-panel";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 import {
   listenVillageFeed,
@@ -41,6 +42,8 @@ export default function DashboardPage() {
         title={`${village.name} 대시보드`}
         desc="한눈에 보는 마을 운영 현황이에요."
       />
+
+      <HomepagePanel />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="소식" value={posts.length} tone="green" sub="발행된 사진 소식" />
