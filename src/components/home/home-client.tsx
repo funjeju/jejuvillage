@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Newspaper, Compass, Map as MapIcon } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
-import { CloudBand, GrassBand, FenceDivider } from "@/components/decor/nature";
+import { CloudBand, FenceDivider, JejuHills, Dolharubang } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
 import { FeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
@@ -88,7 +88,13 @@ export function HomeClient({
             />
           </div>
         </Container>
-        <GrassBand className="-mb-1" />
+        <div className="relative">
+          <JejuHills className="-mb-1" />
+          <Dolharubang
+            size={78}
+            className="absolute bottom-0 left-3 sm:left-10 drop-shadow-[0_6px_8px_rgba(36,48,31,0.25)]"
+          />
+        </div>
       </section>
 
       {/* ── 새소식: 실시간 사진 피드 ── */}
