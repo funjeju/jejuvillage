@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// 제주마을 웹빌더 Storage 보안규칙 (기획서 8장)
+// Storage 규칙은 Firestore(published 여부)를 조회할 수 없으므로,
+// 이미지/음악은 공개 읽기 허용, 쓰기는 인증된 운영자만 + 형식/용량 제한.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /villages/{vid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType.matches('audio/.*')
+        );
+    }
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

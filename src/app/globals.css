@@ -1,26 +1,161 @@
 @import "tailwindcss";
 
+/*
+  제주마을 웹빌더 디자인 시스템 (기획서 7장 기반)
+  컨셉: "제주 중산간의 초록 들판 위, 아기자기한 마을 그림책"
+  - 녹색 자연 톤(기본) + 마을별 포인트 컬러(accent)
+  - accent 계열은 village_theme 로 런타임 오버라이드 가능
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary Green (진녹) — 히어로 배경, 주요 섹션 */
+  --green-900: #1f5423;
+  --green-800: #2f6b33;
+  --green-700: #3e8e41; /* primary */
+  --green-600: #4caf50;
+  /* Sub Green (연녹) — 잔디, 보조 배경, 버튼 */
+  --green-400: #8bc34a;
+  --green-300: #aed581;
+  --green-100: #e8f4dc;
+
+  /* Sky Blue (하늘) */
+  --sky-300: #b3e5fc;
+  --sky-100: #e1f5fe;
+
+  /* Earth Brown (울타리·나무·지면) */
+  --brown-600: #8a5d45;
+  --brown-500: #a1725a;
+  --brown-300: #c8a27c;
+  --brown-100: #efe1d3;
+
+  /* Cream (메모·카드) */
+  --cream-100: #fff9e6;
+  --cream-50: #fffdf5;
+
+  /* Neutral */
+  --ink-900: #24301f; /* 본문 텍스트(녹색톤 다크) */
+  --ink-700: #4a5443;
+  --ink-500: #7a8272;
+  --line: #e6e2d6;
+
+  /* 기본(default) accent — 마을 테마 미설정 시 사용 (조수리=장미 레드가 기본 예시) */
+  --accent: #e14b5a;
+  --accent-fg: #ffffff;
+  --accent-soft: #ffe7ea;
+
+  /* 시맨틱 — 마을 테마 스와핑 대상 */
+  --color-primary: var(--green-700);
+  --color-bg: var(--cream-50);
+  --color-surface: #ffffff;
+  --font-display-family: var(--font-jua), "Jua", system-ui, sans-serif;
+  --font-body-family: "Pretendard Variable", Pretendard, system-ui, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+
+  --radius: 1rem;
+  --radius-lg: 1.5rem;
+  --shadow-card: 0 6px 20px -8px rgba(47, 107, 51, 0.25);
+  --shadow-float: 0 10px 30px -10px rgba(36, 48, 31, 0.35);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-green-900: var(--green-900);
+  --color-green-800: var(--green-800);
+  --color-green-700: var(--green-700);
+  --color-green-600: var(--green-600);
+  --color-green-400: var(--green-400);
+  --color-green-300: var(--green-300);
+  --color-green-100: var(--green-100);
+  --color-sky-300: var(--sky-300);
+  --color-sky-100: var(--sky-100);
+  --color-brown-600: var(--brown-600);
+  --color-brown-500: var(--brown-500);
+  --color-brown-300: var(--brown-300);
+  --color-brown-100: var(--brown-100);
+  --color-cream-100: var(--cream-100);
+  --color-cream-50: var(--cream-50);
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-line: var(--line);
+
+  --color-primary: var(--color-primary);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+
+  --font-display: var(--font-display-family);
+  --font-sans: var(--font-body-family);
+
+  --radius-card: var(--radius);
+  --radius-blob: var(--radius-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  min-width: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--ink-900);
+  font-family: var(--font-body-family);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display-family);
+  letter-spacing: -0.01em;
+}
+
+/* 부드러운 그림책 톤을 위한 기본 포커스 링 */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* 모션 최소화 옵션 존중 (기획서 7.7) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 커스텀 유틸: 스크롤바 숨김(가로 카드 진열) */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* '살아있는 핀' 링 애니메이션 */
+@keyframes live-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  70% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.live-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* 구름 흐름 */
+@keyframes cloud-drift {
+  from { transform: translateX(-2%); }
+  to { transform: translateX(2%); }
+}
+.cloud-drift {
+  animation: cloud-drift 12s ease-in-out infinite alternate;
 }

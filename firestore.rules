@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// 제주마을 웹빌더 Firestore 보안규칙 (기획서 9.1.4)
+// RBAC: 역할/관리마을은 Auth Custom Claims(role, managedVillages)에서 참조.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function role() { return request.auth.token.role; }
+    function managed() { return request.auth.token.managedVillages; }
+
+    function isPlatformAdmin() {
+      return isSignedIn() && role() == 'platform_admin';
+    }
+    function isAdminOf(vid) {
+      return isSignedIn() && role() == 'village_admin' && vid in managed();
+    }
+    function canManage(vid) {
+      return isAdminOf(vid) || isPlatformAdmin();
+    }
+    function villagePublished(vid) {
+      return get(/databases/$(database)/documents/villages/$(vid)).data.status == 'published';
+    }
+
+    match /villages/{vid} {
+      allow read: if resource.data.status == 'published' || canManage(vid);
+      allow create, update, delete: if canManage(vid);
+
+      match /stories/{sid} {
+        allow read: if villagePublished(vid) || canManage(vid);
+        allow write: if canManage(vid);
+      }
+
+      // 테마는 공개 마을홈 렌더에 필요 → 공개 읽기
+      match /theme/{tid} {
+        allow read: if true;
+        allow write: if canManage(vid);
+      }
+
+      // 소식: 공개(마을 published) 읽기 허용, 통합피드(global)는 필터로 선별.
+      match /feed_posts/{pid} {
+        allow read: if villagePublished(vid) || canManage(vid);
+        allow create, update, delete: if canManage(vid);
+      }
+
+      match /products/{pid} {
+        allow read: if resource.data.status == 'published' || canManage(vid);
+        allow create, update, delete: if canManage(vid);
+      }
+
+      // 예약: 방문자 신청(create) 허용, 열람·상태변경은 운영자만.
+      // (개인정보 보호: 신청자 연락처는 운영자/플랫폼 어드민만 read)
+      match /bookings/{bid} {
+        allow create: if true;
+        allow read, update, delete: if canManage(vid);
+      }
+    }
+
+    match /media_assets/{aid} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // 사용자 문서: 본인 또는 플랫폼 어드민만. 권한(role) 부여는 서버(Admin SDK)로만.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isPlatformAdmin());
+      allow write: if false;
+    }
+  }
+}
