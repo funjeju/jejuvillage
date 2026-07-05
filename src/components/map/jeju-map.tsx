@@ -32,10 +32,19 @@ export function JejuMap({
   const [loading, error] = useKakaoLoader({
     appkey: KAKAO_KEY,
     libraries: ["services"],
+    // 기본값이 프로토콜 상대 URL(//dapi...)이라 http 페이지에서 ORB 차단됨 → https 고정
+    url: "https://dapi.kakao.com/v2/maps/sdk.js",
   });
 
   if (!KAKAO_KEY || error) {
-    return <MapFallback villages={villages} activeId={activeId} onHover={onHover} />;
+    return (
+      <MapFallback
+        villages={villages}
+        activeId={activeId}
+        onHover={onHover}
+        reason={!KAKAO_KEY ? "nokey" : "blocked"}
+      />
+    );
   }
 
   return (
@@ -103,20 +112,31 @@ function MapFallback({
   villages,
   activeId,
   onHover,
+  reason = "nokey",
 }: {
   villages: VillageSummary[];
   activeId?: string | null;
   onHover?: (id: string | null) => void;
+  reason?: "nokey" | "blocked";
 }) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   return (
     <div className="relative h-[460px] w-full overflow-hidden rounded-[var(--radius-blob)] border border-line/80 bg-gradient-to-b from-sky-100 to-green-100 p-6">
       <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-20">
         <p className="font-display text-6xl text-green-800">제주</p>
       </div>
-      <p className="relative text-sm text-ink-500 mb-3">
-        지도 API 키(<code className="text-green-700">NEXT_PUBLIC_KAKAO_MAP_APP_KEY</code>)를
-        설정하면 실제 제주 지도가 표시됩니다. 현재는 마을 목록으로 표시합니다.
-      </p>
+      {reason === "blocked" ? (
+        <p suppressHydrationWarning className="relative text-sm text-ink-700 mb-3">
+          카카오 지도 스크립트가 차단됐어요(도메인 미등록). Kakao Developers →
+          내 애플리케이션 → 플랫폼 → Web에 현재 도메인{" "}
+          <code className="text-green-700">{origin}</code>을 등록하면 실제 지도가 표시됩니다.
+        </p>
+      ) : (
+        <p className="relative text-sm text-ink-500 mb-3">
+          지도 API 키(<code className="text-green-700">NEXT_PUBLIC_KAKAO_JS_KEY</code>)를
+          설정하면 실제 제주 지도가 표시됩니다. 현재는 마을 목록으로 표시합니다.
+        </p>
+      )}
       <div className="relative flex flex-wrap gap-2">
         {villages.length === 0 && (
           <span className="text-ink-500 text-sm">아직 공개된 마을이 없어요.</span>

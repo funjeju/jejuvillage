@@ -15,7 +15,10 @@ export function LocationMap({
   lng: number;
   name: string;
 }) {
-  const [loading, error] = useKakaoLoader({ appkey: KAKAO_KEY });
+  const [loading, error] = useKakaoLoader({
+    appkey: KAKAO_KEY,
+    url: "https://dapi.kakao.com/v2/maps/sdk.js",
+  });
   const kakaoLink = `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
 
   if (!KAKAO_KEY || error) {
