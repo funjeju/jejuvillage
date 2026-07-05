@@ -12,6 +12,7 @@ export const paths = {
   theme: (vid: string) => `villages/${vid}/theme`,
   themeDocId: "main",
   themeDoc: (vid: string) => `villages/${vid}/theme/main`,
+  reportDoc: (vid: string) => `villages/${vid}/report/main`,
   mediaAssets: "media_assets",
   users: "users",
 } as const;

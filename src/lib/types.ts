@@ -212,6 +212,48 @@ export interface AppUser {
   managedVillages: string[];
 }
 
+/** 마을 관광인식 리포트 (안덕면 상창리 리포트 형식) */
+export interface ReportKeyword {
+  text: string;
+  weight: number; // 1~5 (글자 크기)
+}
+export interface ReportPlace {
+  name: string;
+  tags: string; // 쉼표 구분 또는 자유 텍스트
+  quote: string; // 관광객 인용
+  imageUrl?: string | null;
+}
+export interface ReportBrandKeyword {
+  label: string; // 예: 플로럴
+  sub: string; // 예: Floral
+}
+export interface ReportCoreValue {
+  label: string; // 예: 심미성
+  sub: string; // 예: Aesthetic
+}
+export interface VillageReport {
+  villageId: string;
+  enabled: boolean;
+  reportTitle: string; // 예: Online Tourism Perception Report
+  tagline: string; // 한 줄 부제
+  score: number; // 0~100 관광 인식 점수
+  keywords: ReportKeyword[];
+  topPlaces: ReportPlace[]; // 가장 많이 언급되는 장소 (순위 = 배열 순서)
+  sentiment: { positive: number; neutral: number; negative: number };
+  sentimentNote: string;
+  brandKeywords: ReportBrandKeyword[];
+  expressions: string[]; // 관광객이 자주 쓰는 표현
+  pros: string[]; // 장점
+  cons: string[]; // 아쉬운 점
+  swot: { strength: string; weakness: string; possibility: string; opportunity: string };
+  strategyKeywords: string[]; // 핵심 전략 방향 태그
+  aiInsight: string; // AI 종합 인사이트
+  brandOneLiner: string; // 한 줄 브랜딩
+  coreValues: ReportCoreValue[];
+  audiencePerception: string; // 관광객 인식 요약
+  updatedAt: number;
+}
+
 /** 마을 홈 템플릿 렌더에 필요한 데이터 묶음 */
 export interface VillageBundle {
   village: Village;
@@ -219,4 +261,5 @@ export interface VillageBundle {
   stories: VillageStory[];
   products: Product[];
   posts: FeedPost[];
+  reportEnabled: boolean;
 }

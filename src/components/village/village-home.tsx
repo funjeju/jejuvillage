@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { MapPin, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { MapPin, Sparkles, BarChart3 } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { Postit } from "@/components/ui/postit";
 import { FenceDivider, GrassBand } from "@/components/decor/nature";
@@ -106,11 +107,19 @@ function HeroSection({ bundle }: { bundle: VillageBundle }) {
               {village.oneLiner}
             </p>
           )}
-          {theme?.bgmUrl && (
-            <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {theme?.bgmUrl && (
               <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />
-            </div>
-          )}
+            )}
+            {bundle.reportEnabled && (
+              <Link
+                href={`/v/${village.slug}/report`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/85 px-4 py-2 text-sm font-semibold text-green-800 shadow-[var(--shadow-card)] backdrop-blur-sm hover:bg-white"
+              >
+                <BarChart3 size={16} /> 관광 리포트 보기
+              </Link>
+            )}
+          </div>
         </Container>
       </div>
     </section>

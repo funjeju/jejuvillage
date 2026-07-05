@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, Newspaper, Compass, Map as MapIcon } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
-import { CloudBand, FenceDivider, JejuHills, Dolharubang } from "@/components/decor/nature";
+import { FenceDivider } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
 import { FeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
@@ -37,22 +38,27 @@ export function HomeClient({
     return () => unsub();
   }, []);
 
-  const seasonVillage = useMemo(
-    () => villages.find((v) => v.isLive) ?? villages[0],
-    [villages]
-  );
-
   return (
     <div>
-      {/* ── 히어로: 제주 중산간 파노라마 + 검색 + 마스코트 (기획서 7.6) ── */}
-      <section className="relative bg-gradient-to-b from-sky-100 via-sky-100 to-green-100 overflow-hidden">
-        <CloudBand className="absolute top-2 left-0 opacity-80" />
-        <Container className="relative pt-16 pb-24 sm:pt-20 text-center">
-          <h1 className="font-display text-3xl sm:text-5xl leading-tight text-ink-900">
+      {/* ── 히어로: 한라산·돌담 파노라마 배경 + 검색 + 마스코트 ── */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          <Image
+            src="/decor/jeju-hero.png"
+            alt="제주 한라산과 돌담 풍경"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-white/25 to-cream-50" />
+        </div>
+        <Container className="relative pt-16 pb-40 sm:pt-20 sm:pb-52 text-center">
+          <h1 className="font-display text-3xl sm:text-5xl leading-tight text-ink-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.6)]">
             제주 마을,
             <br className="sm:hidden" /> 지금 이 순간을 만나요
           </h1>
-          <p className="mt-3 text-ink-700 text-base sm:text-lg">
+          <p className="mt-3 text-ink-800 text-base sm:text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.6)]">
             지도에서 마을을 발견하고, 살아있는 사진 소식으로 오늘의 마을을 보고,
             바로 체험을 예약하세요.
           </p>
@@ -81,20 +87,9 @@ export function HomeClient({
           </form>
 
           <div className="mt-8 flex justify-center">
-            <Mascot
-              src={seasonVillage?.heroUrl ? null : null}
-              say="안녕! 나랑 제주 마을 구경 갈래?"
-              size={84}
-            />
+            <Mascot say="안녕! 나랑 제주 마을 구경 갈래?" size={84} />
           </div>
         </Container>
-        <div className="relative">
-          <JejuHills className="-mb-1" />
-          <Dolharubang
-            size={78}
-            className="absolute bottom-0 left-3 sm:left-10 drop-shadow-[0_6px_8px_rgba(36,48,31,0.25)]"
-          />
-        </div>
       </section>
 
       {/* ── 새소식: 실시간 사진 피드 ── */}

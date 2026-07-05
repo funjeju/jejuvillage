@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Loader2, Send, Pin, PinOff, Trash2, Globe, Lock } from "lucide-react";
+import { Loader2, Send, Pin, PinOff, Trash2, Globe, Lock, Pencil, X } from "lucide-react";
 import { useAdmin } from "@/lib/admin/admin-context";
 import { PageTitle, Panel, adminField, adminLabel } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   listenVillageFeed,
   deleteFeedPost,
   setFeedPostPinned,
+  updateFeedPost,
 } from "@/lib/repo/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { feedPostInputSchema } from "@/lib/schemas";
@@ -30,6 +31,7 @@ export default function AdminFeedPage() {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<FeedPost | null>(null);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
@@ -163,6 +165,9 @@ export default function AdminFeedPage() {
                       >
                         {p.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
                       </IconBtn>
+                      <IconBtn onClick={() => setEditing(p)} label="수정">
+                        <Pencil size={14} />
+                      </IconBtn>
                       <IconBtn
                         danger
                         onClick={() => {
@@ -184,6 +189,93 @@ export default function AdminFeedPage() {
           )}
         </div>
       </div>
+
+      {editing && (
+        <EditPostModal
+          villageId={village.id}
+          post={editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditPostModal({
+  villageId,
+  post,
+  onClose,
+}: {
+  villageId: string;
+  post: FeedPost;
+  onClose: () => void;
+}) {
+  const [caption, setCaption] = useState(post.caption);
+  const [tagsRaw, setTagsRaw] = useState(post.tags.join(" "));
+  const [visibility, setVisibility] = useState<"global" | "village_only">(post.visibility);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!caption.trim()) {
+      setError("캡션을 입력해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const tags = tagsRaw.split(/[,\s#]+/).map((t) => t.trim()).filter(Boolean).slice(0, 10);
+      await updateFeedPost(villageId, post.id, { caption: caption.trim(), tags, visibility });
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <Panel className="relative w-full max-w-md">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg">소식 수정</h2>
+          <button onClick={onClose} aria-label="닫기">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className={adminLabel}>캡션</label>
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} maxLength={300} className={adminField} />
+          </div>
+          <div>
+            <label className={adminLabel}>태그</label>
+            <input value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="#장미 #체험" className={adminField} />
+          </div>
+          <div>
+            <label className={adminLabel}>공개 범위</label>
+            <div className="flex gap-2">
+              <VisBtn active={visibility === "global"} onClick={() => setVisibility("global")} icon={<Globe size={15} />}>
+                마을홈 + 통합피드
+              </VisBtn>
+              <VisBtn active={visibility === "village_only"} onClick={() => setVisibility("village_only")} icon={<Lock size={15} />}>
+                마을홈만
+              </VisBtn>
+            </div>
+          </div>
+          {error && (
+            <p className="rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">{error}</p>
+          )}
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={busy}>
+              {busy ? <Loader2 size={16} className="animate-spin" /> : null}
+              저장
+            </Button>
+            <Button variant="ghost" onClick={onClose}>취소</Button>
+          </div>
+        </div>
+      </Panel>
     </div>
   );
 }

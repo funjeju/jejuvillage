@@ -11,6 +11,7 @@ import type {
   Product,
   VillageBundle,
   Booking,
+  VillageReport,
 } from "@/lib/types";
 import type { DocumentData } from "firebase-admin/firestore";
 
@@ -259,6 +260,36 @@ export function getVillageById(villageId: string): Promise<Village | null> {
   }, null);
 }
 
+export function getVillageReport(villageId: string): Promise<VillageReport | null> {
+  return safe(async () => {
+    const doc = await adminDb().doc(paths.reportDoc(villageId)).get();
+    const d = doc.data();
+    if (!d) return null;
+    return {
+      villageId,
+      enabled: d.enabled ?? false,
+      reportTitle: d.reportTitle ?? "Online Tourism Perception Report",
+      tagline: d.tagline ?? "",
+      score: d.score ?? 0,
+      keywords: d.keywords ?? [],
+      topPlaces: d.topPlaces ?? [],
+      sentiment: d.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
+      sentimentNote: d.sentimentNote ?? "",
+      brandKeywords: d.brandKeywords ?? [],
+      expressions: d.expressions ?? [],
+      pros: d.pros ?? [],
+      cons: d.cons ?? [],
+      swot: d.swot ?? { strength: "", weakness: "", possibility: "", opportunity: "" },
+      strategyKeywords: d.strategyKeywords ?? [],
+      aiInsight: d.aiInsight ?? "",
+      brandOneLiner: d.brandOneLiner ?? "",
+      coreValues: d.coreValues ?? [],
+      audiencePerception: d.audiencePerception ?? "",
+      updatedAt: toMillis(d.updatedAt),
+    } satisfies VillageReport;
+  }, null);
+}
+
 export function getVillageBySlug(slug: string): Promise<Village | null> {
   return safe(async () => {
     const snap = await adminDb()
@@ -280,7 +311,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
     const db = adminDb();
     const vid = village.id;
 
-    const [themeSnap, storiesSnap, productsSnap, postsSnap] = await Promise.all([
+    const [themeSnap, storiesSnap, productsSnap, postsSnap, reportSnap] = await Promise.all([
       db.doc(paths.themeDoc(vid)).get(),
       db.collection(paths.stories(vid)).orderBy("order", "asc").get(),
       db
@@ -292,6 +323,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
         .orderBy("publishedAt", "desc")
         .limit(30)
         .get(),
+      db.doc(paths.reportDoc(vid)).get(),
     ]);
 
     return {
@@ -302,6 +334,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
         .map((d) => mapProduct(d.id, d.data()))
         .sort((a, b) => b.createdAt - a.createdAt),
       posts: postsSnap.docs.map((d) => mapPost(d.id, d.data())),
+      reportEnabled: reportSnap.data()?.enabled === true,
     } satisfies VillageBundle;
   }, null);
 }

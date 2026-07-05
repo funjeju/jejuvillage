@@ -10,6 +10,7 @@ import {
   Package,
   CalendarCheck,
   Home,
+  BarChart3,
   LogOut,
   ExternalLink,
   Menu,
@@ -29,6 +30,7 @@ const NAV = [
   { href: "/admin/feed", label: "소식 발행", icon: Camera },
   { href: "/admin/products", label: "체험상품", icon: Package },
   { href: "/admin/bookings", label: "예약 관리", icon: CalendarCheck },
+  { href: "/admin/report", label: "관광 리포트", icon: BarChart3 },
   { href: "/admin/village", label: "마을 정보", icon: Home },
 ];
 

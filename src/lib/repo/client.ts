@@ -57,6 +57,18 @@ export async function createFeedPost(
   return ref.id;
 }
 
+export async function updateFeedPost(
+  villageId: string,
+  postId: string,
+  patch: { caption: string; tags: string[]; visibility: "global" | "village_only" }
+) {
+  await updateDoc(doc(clientDb(), `${paths.feedPosts(villageId)}/${postId}`), {
+    caption: patch.caption,
+    tags: patch.tags,
+    visibility: patch.visibility,
+  });
+}
+
 export async function deleteFeedPost(villageId: string, postId: string) {
   await deleteDoc(doc(clientDb(), `${paths.feedPosts(villageId)}/${postId}`));
 }
@@ -344,6 +356,26 @@ export async function applyGeneratedHomepage(
   if (Object.keys(themePartial).length) {
     await saveThemePartial(villageId, themePartial);
   }
+}
+
+// ── 관광인식 리포트 ──────────────────────────────────────────────────────
+
+export async function saveVillageReport(
+  villageId: string,
+  report: Record<string, unknown>
+) {
+  await setDoc(
+    doc(clientDb(), paths.reportDoc(villageId)),
+    { villageId, ...report, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+export async function getReportOnce(
+  villageId: string
+): Promise<Record<string, unknown> | null> {
+  const snap = await getDoc(doc(clientDb(), paths.reportDoc(villageId)));
+  return snap.exists() ? snap.data() : null;
 }
 
 export async function getThemeOnce(villageId: string): Promise<VillageTheme | null> {
