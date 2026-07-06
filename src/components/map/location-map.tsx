@@ -1,11 +1,21 @@
 "use client";
 
-import { Map, MapMarker, useKakaoLoader } from "react-kakao-maps-sdk";
+import dynamic from "next/dynamic";
 import { ExternalLink } from "lucide-react";
 
-const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "";
+/** 단일 위치 지도 (마을홈 '오시는 길') — OpenStreetMap(Leaflet). */
+const LeafletLocation = dynamic(
+  () => import("@/components/map/leaflet-location").then((m) => m.LeafletLocation),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 grid place-items-center bg-sky-100 text-green-700">
+        지도 불러오는 중…
+      </div>
+    ),
+  }
+);
 
-/** 단일 위치 지도 (마을홈 '오시는 길'). 키 없으면 좌표+외부링크 폴백. */
 export function LocationMap({
   lat,
   lng,
@@ -15,40 +25,20 @@ export function LocationMap({
   lng: number;
   name: string;
 }) {
-  const [loading, error] = useKakaoLoader({
-    appkey: KAKAO_KEY,
-    url: "https://dapi.kakao.com/v2/maps/sdk.js",
-  });
-  const kakaoLink = `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
-
-  if (!KAKAO_KEY || error) {
-    return (
-      <div className="rounded-[var(--radius-blob)] border border-line/80 bg-sky-100 p-6 text-sm">
-        <p className="text-ink-700">
-          위도 {lat.toFixed(5)}, 경도 {lng.toFixed(5)}
-        </p>
-        <a
-          href={kakaoLink}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 font-semibold text-green-700 hover:underline"
-        >
-          카카오맵에서 열기 <ExternalLink size={14} />
-        </a>
-      </div>
-    );
-  }
-
+  const directions = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   return (
-    <div className="relative h-72 w-full overflow-hidden rounded-[var(--radius-blob)] border border-line/80">
-      {loading && (
-        <div className="absolute inset-0 z-10 grid place-items-center bg-sky-100 text-green-700">
-          지도 불러오는 중…
-        </div>
-      )}
-      <Map center={{ lat, lng }} level={4} style={{ width: "100%", height: "100%" }}>
-        <MapMarker position={{ lat, lng }} title={name} />
-      </Map>
+    <div>
+      <div className="relative h-72 w-full overflow-hidden rounded-[var(--radius-blob)] border border-line/80 z-0">
+        <LeafletLocation lat={lat} lng={lng} />
+      </div>
+      <a
+        href={directions}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:underline"
+      >
+        {name} 길찾기 (구글지도) <ExternalLink size={14} />
+      </a>
     </div>
   );
 }
