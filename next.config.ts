@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // pdf-parse(pdfjs)는 번들 시 워커 경로가 깨지므로 런타임에 node_modules에서 로드
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
   images: {
     remotePatterns: [
       // Firebase Storage (원본/썸네일)

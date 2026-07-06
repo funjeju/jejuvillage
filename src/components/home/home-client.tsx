@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { FenceDivider } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
 import { FeedCard, FeaturedFeedCard } from "@/components/feed/feed-card";
+import { HomeCtaBar } from "@/components/home/home-cta";
 import { ProductCard } from "@/components/product/product-card";
 import { JejuMap } from "@/components/map/jeju-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
@@ -180,6 +181,8 @@ export function HomeClient({
           <JejuMap villages={villages} activeId={activeId} onHover={setActiveId} />
         </Container>
       </section>
+
+      <HomeCtaBar />
     </div>
   );
 }
