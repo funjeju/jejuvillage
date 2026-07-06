@@ -8,7 +8,7 @@ import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { FenceDivider } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
-import { FeedCard } from "@/components/feed/feed-card";
+import { FeedCard, FeaturedFeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
 import { JejuMap } from "@/components/map/jeju-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
@@ -92,12 +92,20 @@ export function HomeClient({
         </Container>
       </section>
 
-      {/* ── 새소식: 실시간 사진 피드 ── */}
+      {/* ── LIVE: 사무장이 사진 한 장으로 올리는 카드뉴스형 실시간 피드 ── */}
       <Container className="py-12">
         <SectionHeading
-          eyebrow="🌱 지금 마을에서는"
-          title="살아있는 마을 소식"
-          desc="마을 운영자가 방금 올린 사진들이에요. 카드에 올려보면 지도에서 위치가 반짝여요."
+          eyebrow={
+            <span className="inline-flex items-center gap-1.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-70" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+              </span>
+              LIVE · 지금 마을에서는
+            </span>
+          }
+          title="1년 내내 살아있는 마을 소식"
+          desc="사무장이 사진 한 장만 올리면 카드뉴스처럼 예쁘게 보여요. 카드에 올려보면 지도에서 위치가 반짝여요."
           action={
             <ButtonLink href="/feed" variant="soft" size="sm">
               <Newspaper size={16} /> 전체 소식
@@ -105,16 +113,26 @@ export function HomeClient({
           }
         />
         {posts.length ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {posts.slice(0, 8).map((p) => (
-              <FeedCard
-                key={p.id}
-                post={p}
-                active={activeId === p.villageId}
-                onActivate={setActiveId}
-                onDeactivate={() => setActiveId(null)}
-              />
-            ))}
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+            {/* 대표 카드 (최신) */}
+            <FeaturedFeedCard
+              post={posts[0]}
+              active={activeId === posts[0].villageId}
+              onActivate={setActiveId}
+              onDeactivate={() => setActiveId(null)}
+            />
+            {/* 나머지 카드뉴스 그리드 */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {posts.slice(1, 5).map((p) => (
+                <FeedCard
+                  key={p.id}
+                  post={p}
+                  active={activeId === p.villageId}
+                  onActivate={setActiveId}
+                  onDeactivate={() => setActiveId(null)}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <EmptyHint icon={<Newspaper />} text="아직 올라온 소식이 없어요. 첫 소식을 기다리는 중!" />
@@ -123,12 +141,12 @@ export function HomeClient({
 
       <FenceDivider />
 
-      {/* ── 체험 진열 ── */}
+      {/* ── 지금 예약 가능한 체험 (구매 가능 상품) ── */}
       <Container className="py-12">
         <SectionHeading
-          eyebrow="🥾 제주에서만"
-          title="추천 체험"
-          desc="마을이 직접 준비한 체험이에요."
+          eyebrow="🎫 지금 예약 가능한"
+          title="제주 마을 로컬 체험"
+          desc="마을이 직접 준비한, 지금 바로 신청할 수 있는 체험이에요."
           action={
             <ButtonLink href="/villages" variant="soft" size="sm">
               <Compass size={16} /> 마을별 체험

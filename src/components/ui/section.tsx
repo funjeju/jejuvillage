@@ -12,7 +12,7 @@ export function SectionHeading({
   action,
   className,
 }: {
-  eyebrow?: string;
+  eyebrow?: ReactNode;
   title: ReactNode;
   desc?: ReactNode;
   action?: ReactNode;

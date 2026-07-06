@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Music, ImagePlus } from "lucide-react";
+import { Loader2, Music, ImagePlus, Sparkles, Wand2 } from "lucide-react";
 import { adminField, adminLabel } from "@/components/admin/ui";
 import { uploadImageTo, uploadAudio } from "@/lib/firebase/storage";
 
@@ -36,9 +36,34 @@ export function DesignTab({
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState<null | "hero" | "mascot">(null);
   const heroRef = useRef<HTMLInputElement>(null);
   const mascotRef = useRef<HTMLInputElement>(null);
   const bgmRef = useRef<HTMLInputElement>(null);
+
+  async function generate(kind: "hero" | "mascot") {
+    setError(null);
+    if (aiPrompt.trim().length < 4) {
+      setError("생성할 이미지를 한 줄로 설명해 주세요.");
+      return;
+    }
+    setAiBusy(kind);
+    try {
+      const res = await fetch("/api/admin/generate-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId, prompt: aiPrompt, kind }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "이미지 생성 실패");
+      onChange(kind === "hero" ? { heroUrl: data.url } : { mascotUrl: data.url });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAiBusy(null);
+    }
+  }
 
   async function pickImage(kind: "hero" | "mascot", file?: File) {
     if (!file) return;
@@ -73,6 +98,47 @@ export function DesignTab({
 
   return (
     <div className="space-y-6">
+      {/* AI 이미지 생성 (마을 고유 배경·마스코트) */}
+      <div className="rounded-2xl bg-gradient-to-br from-green-100 to-sky-100 p-4">
+        <p className="flex items-center gap-2 font-display text-lg">
+          <Sparkles size={18} className="text-green-700" /> AI로 마을 고유 이미지 만들기
+        </p>
+        <p className="mt-1 text-sm text-ink-700">
+          우리 마을만의 배경화면·마스코트를 AI로 생성해요. 원하는 장면을 한 줄로 적고
+          버튼을 누르면 돼요. (예: “빌레용암 위 장미 돌담길과 팽나무”)
+        </p>
+        <textarea
+          value={aiPrompt}
+          onChange={(e) => setAiPrompt(e.target.value)}
+          rows={2}
+          placeholder="예) 봄철 장미가 핀 제주 돌담길, 480년 팽나무, 한라산이 보이는 풍경"
+          className={`${adminField} mt-3`}
+        />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => generate("hero")}
+            disabled={aiBusy !== null}
+            className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+          >
+            {aiBusy === "hero" ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+            배경 생성
+          </button>
+          <button
+            type="button"
+            onClick={() => generate("mascot")}
+            disabled={aiBusy !== null}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-green-800 border border-green-700 hover:bg-green-100 disabled:opacity-50"
+          >
+            {aiBusy === "mascot" ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+            마스코트 생성
+          </button>
+          <span className="self-center text-xs text-ink-500">
+            생성엔 몇십 초 걸려요. 결과는 아래 대표/마스코트에 자동 적용돼요.
+          </span>
+        </div>
+      </div>
+
       {/* 색상 */}
       <div>
         <label className={adminLabel}>테마 색상</label>
