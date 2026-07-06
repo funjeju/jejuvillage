@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   const k = kind ?? "hero";
-  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
   const composed = `${prompt.trim()}\n\n${STYLE[k] ?? STYLE.asset}`;
 
   try {
