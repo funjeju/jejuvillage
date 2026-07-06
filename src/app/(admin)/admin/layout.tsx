@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { getVillageById } from "@/lib/repo/server";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { VillageOnboarding } from "@/components/admin/village-onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,12 @@ export default async function AdminLayout({
 }) {
   const user = await getSessionUser();
 
-  if (!user || user.role === "guest") {
+  // 로그인 안 됨 → 로그인 페이지
+  if (!user) {
     redirect("/login");
   }
 
-  // 플랫폼 어드민은 전용 콘솔로 (관리 마을이 없어도 /platform 사용)
+  // 플랫폼 어드민(관리 마을 없음) → 전용 콘솔
   if (user.role === "platform_admin" && user.managedVillages.length === 0) {
     redirect("/platform");
   }
@@ -25,24 +26,9 @@ export default async function AdminLayout({
   const villageId = user.managedVillages[0];
   const village = villageId ? await getVillageById(villageId) : null;
 
+  // 로그인은 됐지만 아직 마을이 없는 사용자 → 자체 마을 개설 온보딩
   if (!village) {
-    return (
-      <div className="min-h-dvh grid place-items-center bg-cream-50 p-4">
-        <div className="max-w-md rounded-[var(--radius-blob)] bg-white border border-line/80 p-8 text-center shadow-[var(--shadow-card)]">
-          <h1 className="font-display text-2xl">배정된 마을이 없어요</h1>
-          <p className="mt-2 text-ink-500">
-            아직 관리할 마을이 배정되지 않았어요. 플랫폼 관리자에게 마을 배정을
-            요청해 주세요.
-          </p>
-          <Link
-            href="/"
-            className="mt-6 inline-block rounded-full bg-green-700 px-6 py-2.5 font-display font-semibold text-white"
-          >
-            홈으로
-          </Link>
-        </div>
-      </div>
-    );
+    return <VillageOnboarding userName={user.name} />;
   }
 
   return (

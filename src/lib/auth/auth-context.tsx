@@ -11,6 +11,8 @@ import {
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as fbSignOut,
   type User,
 } from "firebase/auth";
@@ -24,6 +26,8 @@ interface AuthState {
   loading: boolean;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -59,9 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [configured]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const cred = await signInWithEmailAndPassword(clientAuth(), email, password);
-    const idToken = await cred.user.getIdToken();
+  async function createSession(idToken: string) {
     const res = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71,6 +73,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await res.json().catch(() => ({ error: "세션 생성 실패" }));
       throw new Error(error ?? "세션 생성 실패");
     }
+  }
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const cred = await signInWithEmailAndPassword(clientAuth(), email, password);
+    await createSession(await cred.user.getIdToken());
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    const cred = await signInWithPopup(clientAuth(), provider);
+    await createSession(await cred.user.getIdToken());
+  }, []);
+
+  /** 서버에서 커스텀 클레임(권한/관리마을)이 바뀐 뒤 토큰·세션을 갱신 */
+  const refreshSession = useCallback(async () => {
+    const u = clientAuth().currentUser;
+    if (!u) return;
+    const idToken = await u.getIdToken(true); // 강제 갱신 → 새 클레임 반영
+    await createSession(idToken);
+    const token = await u.getIdTokenResult();
+    setRole((token.claims.role as Role) ?? "guest");
+    setManagedVillages((token.claims.managedVillages as string[]) ?? []);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -80,7 +105,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, role, managedVillages, loading, configured, signIn, signOut }}
+      value={{
+        user,
+        role,
+        managedVillages,
+        loading,
+        configured,
+        signIn,
+        signInWithGoogle,
+        refreshSession,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

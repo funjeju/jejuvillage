@@ -4,6 +4,7 @@ import { paths } from "@/lib/firebase/paths";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
+  SUPER_ADMIN_EMAIL,
 } from "@/lib/auth/session";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -22,7 +23,10 @@ export async function POST(req: NextRequest) {
     const decoded = await adminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    // users 문서 보장 (없으면 guest 로 생성)
+    const email = (decoded.email ?? "").toLowerCase();
+    const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
+
+    // users 문서 보장 (없으면 생성). 슈퍼어드민 이메일은 platform_admin 부트스트랩.
     const userRef = adminDb().doc(`${paths.users}/${uid}`);
     const snap = await userRef.get();
     if (!snap.exists) {
@@ -30,9 +34,20 @@ export async function POST(req: NextRequest) {
         name: decoded.name ?? decoded.email?.split("@")[0] ?? "사용자",
         email: decoded.email ?? null,
         phone: decoded.phone_number ?? null,
-        role: "guest",
+        role: isSuperAdmin ? "platform_admin" : "guest",
         managedVillages: [],
         createdAt: FieldValue.serverTimestamp(),
+      });
+    } else if (isSuperAdmin && snap.data()?.role !== "platform_admin") {
+      await userRef.set({ role: "platform_admin" }, { merge: true });
+    }
+
+    // 슈퍼어드민 커스텀 클레임 보장 (Firestore 보안규칙/토큰 반영)
+    if (isSuperAdmin && decoded.role !== "platform_admin") {
+      const claims = (decoded as { managedVillages?: string[] }).managedVillages ?? [];
+      await adminAuth().setCustomUserClaims(uid, {
+        role: "platform_admin",
+        managedVillages: claims,
       });
     }
 

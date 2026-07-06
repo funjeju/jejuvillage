@@ -7,6 +7,9 @@ import type { Role } from "@/lib/types";
 export const SESSION_COOKIE = "jv_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 5; // 5일
 
+/** 메인 슈퍼 관리자 — 이 이메일로 로그인하면 자동으로 platform_admin */
+export const SUPER_ADMIN_EMAIL = "naggu1999@gmail.com";
+
 export interface SessionUser {
   uid: string;
   email: string | null;
