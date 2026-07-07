@@ -61,7 +61,7 @@ Composition: keep ALL important subjects (mascot, focal scenery) within the CENT
 Absolutely no text, no words, no letters, no logos.`;
 
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
-  const quality = process.env.OPENAI_IMAGE_QUALITY || "low";
+  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";
 
   try {
     const res = await fetch("https://api.openai.com/v1/images/generations", {

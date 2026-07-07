@@ -76,24 +76,24 @@ export function DesignTab({
       };
       setMascotVisual(a.visualPrompt);
 
-      // 1) 시트 묘사를 바탕으로 깔끔한 단독 캐릭터 이미지를 새로 생성 (통짜 시트 배치 방지)
+      // 1) 시트를 '참조 이미지'로 넣어 gpt-image-2가 원본에 충실한 단독 캐릭터 생성 (image-to-image)
       let mascotUrl: string | null = null;
-      if (a.visualPrompt) {
-        try {
-          const gen = await fetch("/api/admin/generate-asset", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              villageId,
-              kind: "mascot",
-              prompt: `${a.visualPrompt}. Single character only, full body, front-facing, centered, clean simple soft background, no reference sheet grid, no multiple poses.`,
-            }),
-          });
-          const gd = await gen.json();
-          if (gen.ok && gd.url) mascotUrl = gd.url;
-        } catch {
-          /* 생성 실패 시 크롭 폴백 */
-        }
+      try {
+        const gen = await fetch("/api/admin/generate-asset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            villageId,
+            kind: "mascot",
+            prompt: a.visualPrompt || "this village mascot character, single full-body figure",
+            refImageBase64: base64,
+            refMediaType: mediaType,
+          }),
+        });
+        const gd = await gen.json();
+        if (gen.ok && gd.url) mascotUrl = gd.url;
+      } catch {
+        /* 생성 실패 시 크롭 폴백 */
       }
       // 2) 폴백: 시트에서 대표 포즈만 크롭
       if (!mascotUrl) {

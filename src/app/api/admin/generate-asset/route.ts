@@ -28,10 +28,15 @@ const SIZE: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  const { villageId, prompt, kind } = (await req.json().catch(() => ({}))) as {
+  const { villageId, prompt, kind, refImageBase64, refMediaType } = (await req
+    .json()
+    .catch(() => ({}))) as {
     villageId?: string;
     prompt?: string;
     kind?: "hero" | "mascot" | "asset";
+    /** 참조 이미지(캐릭터시트 등) base64 — 있으면 image-to-image(edits)로 생성 */
+    refImageBase64?: string;
+    refMediaType?: string;
   };
 
   const user = await getSessionUser();
@@ -52,25 +57,48 @@ export async function POST(req: NextRequest) {
 
   const k = kind ?? "hero";
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
-  const quality = process.env.OPENAI_IMAGE_QUALITY || "low";
+  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";
+  const size = SIZE[k] ?? "1024x1024";
   const composed = `${prompt.trim()}\n\n${STYLE[k] ?? STYLE.asset}`;
 
   try {
-    // 1) OpenAI 이미지 생성 (b64 반환)
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        prompt: composed,
-        size: SIZE[k] ?? "1024x1024",
-        quality,
-        n: 1,
-      }),
-    });
+    let res: Response;
+    if (refImageBase64) {
+      // 참조 이미지 기반 생성 (gpt-image-2 image-to-image, /v1/images/edits)
+      const refPrompt =
+        `${prompt.trim()}\n\nUse the attached image as the exact visual reference. ` +
+        `Reproduce the SAME character/subject faithfully — identical design, colors, outfit, face, proportions and art style. ` +
+        (k === "mascot"
+          ? "Isolate the single main mascot as ONE full-body, front-facing figure, centered on a clean soft pastel background. Remove any character-sheet grid, turnaround poses, color swatches, labels and text."
+          : "Keep it faithful to the reference. No text, no words.");
+      const form = new FormData();
+      form.append("model", model);
+      form.append("prompt", refPrompt);
+      form.append("size", size);
+      form.append("quality", quality);
+      form.append("n", "1");
+      const refBuf = Buffer.from(refImageBase64, "base64");
+      form.append(
+        "image",
+        new Blob([refBuf], { type: refMediaType || "image/png" }),
+        "reference.png"
+      );
+      res = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+    } else {
+      // 텍스트 프롬프트 기반 생성 (text-to-image)
+      res = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model, prompt: composed, size, quality, n: 1 }),
+      });
+    }
     const data = await res.json();
     if (!res.ok) {
       return NextResponse.json(

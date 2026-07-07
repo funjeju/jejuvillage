@@ -178,22 +178,23 @@ function Wizard({ userName }: { userName: string }) {
             mascotVisual = a.visualPrompt || undefined;
 
             let url: string | null = null;
-            if (a.visualPrompt) {
-              try {
-                const gr = await fetch("/api/admin/generate-asset", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    villageId: slug,
-                    kind: "mascot",
-                    prompt: `${a.visualPrompt}. Single character only, full body, front-facing, centered, clean simple soft background, no reference sheet grid, no multiple poses.`,
-                  }),
-                });
-                const gd2 = await gr.json();
-                if (gr.ok && gd2.url) url = gd2.url;
-              } catch {
-                /* 생성 실패 → 크롭 폴백 */
-              }
+            try {
+              // 시트를 참조 이미지로 넣어 원본에 충실한 단독 캐릭터 생성 (image-to-image)
+              const gr = await fetch("/api/admin/generate-asset", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  villageId: slug,
+                  kind: "mascot",
+                  prompt: a.visualPrompt || "this village mascot character, single full-body figure",
+                  refImageBase64: base64,
+                  refMediaType: mediaType,
+                }),
+              });
+              const gd2 = await gr.json();
+              if (gr.ok && gd2.url) url = gd2.url;
+            } catch {
+              /* 생성 실패 → 크롭 폴백 */
             }
             if (!url) {
               url = (await cropAndUploadMascot(slug, mascotFile, a.cropBox)).url;
