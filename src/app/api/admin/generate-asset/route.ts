@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const objectPath = `villages/${villageId}/generated/${k}-${id}.png`;
-    let buffer = Buffer.from(b64, "base64");
+    let buffer: Buffer = Buffer.from(b64, "base64");
     if (k === "mascot") {
       buffer = await chromaKeyMagenta(buffer);
     }
