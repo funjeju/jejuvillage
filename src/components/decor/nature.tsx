@@ -75,21 +75,22 @@ export function GrassBand({ className }: { className?: string }) {
   );
 }
 
-/** 현무암 돌담(밭담) 구분선 — 실제 돌담 이미지 밴드 */
+/** 현무암 돌담(밭담) 구분선 — 돌담 밴드 이미지(1536x196, 여백 제거) */
 export function StoneWall({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
       className={cn("relative w-full overflow-hidden my-2", className)}
     >
-      <div className="relative h-20 w-full">
+      {/* 밴드 이미지라 어느 화면 비율에서도 돌담+잔디가 제대로 보임 */}
+      <div className="relative h-16 w-full sm:h-20 md:h-24">
         <Image
           src="/decor/jeju-stonewall.png"
           alt=""
           fill
           sizes="100vw"
           className="object-cover"
-          style={{ objectPosition: "center 64%" }}
+          style={{ objectPosition: "center 58%" }}
         />
       </div>
     </div>
