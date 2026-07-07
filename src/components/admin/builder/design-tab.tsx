@@ -53,6 +53,7 @@ export function DesignTab({
   const [sheetMsg, setSheetMsg] = useState<string | null>(null);
   const [bannerBusy, setBannerBusy] = useState(false);
   const heroRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const mascotRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLInputElement>(null);
   const bgmRef = useRef<HTMLInputElement>(null);
@@ -121,19 +122,27 @@ export function DesignTab({
     }
   }
 
-  /** 마을 사실을 근거로 대표 배너 자동 생성 → 후보 갤러리에 추가 */
-  async function generateBanner() {
+  /**
+   * 배너 생성.
+   * - refFile 있으면: 실제 사진을 그대로 수채화 배너로 리페인트(지형 그대로)
+   * - 없으면: 마을 사실을 근거로 자동 생성
+   */
+  async function generateBanner(refFile?: File) {
     setError(null);
     setBannerBusy(true);
     try {
+      let body: Record<string, unknown> = { villageId };
+      if (refFile) {
+        const { base64, mediaType } = await fileToBase64(refFile);
+        body = { villageId, refImageBase64: base64, refMediaType: mediaType };
+      }
       const res = await fetch("/api/admin/generate-banner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ villageId }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "배너 생성 실패");
-      // 서버가 관리하는 히스토리를 그대로 반영 (없으면 로컬 병합)
       const history: string[] = Array.isArray(data.history)
         ? data.history
         : dedupe([data.url, ...(value.heroHistory ?? [])]);
@@ -142,6 +151,7 @@ export function DesignTab({
       setError((e as Error).message);
     } finally {
       setBannerBusy(false);
+      if (photoRef.current) photoRef.current.value = "";
     }
   }
 
@@ -317,10 +327,10 @@ export function DesignTab({
           <UploadThumb url={value.heroUrl} ratio="h-24 w-40" onClick={() => heroRef.current?.click()} loading={uploading === "hero"} />
           <input ref={heroRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage("hero", e.target.files?.[0])} />
           <div className="flex flex-col gap-1.5">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={generateBanner}
+                onClick={() => generateBanner()}
                 disabled={bannerBusy}
                 className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
               >
@@ -329,14 +339,30 @@ export function DesignTab({
               </button>
               <button
                 type="button"
+                onClick={() => photoRef.current?.click()}
+                disabled={bannerBusy}
+                className="inline-flex items-center gap-1.5 rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100 disabled:opacity-50"
+              >
+                <ScanFace size={15} /> 실제 사진으로 배너 만들기
+              </button>
+              <input
+                ref={photoRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => generateBanner(e.target.files?.[0])}
+              />
+              <button
+                type="button"
                 onClick={() => heroRef.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink-700 hover:border-green-600"
               >
                 <ImagePlus size={15} /> 직접 업로드
               </button>
             </div>
             <span className="text-xs text-ink-500">
-              마을 정보를 근거로 제주다운 배너를 만들어요. 생성한 배너는 아래에 쌓이고, 골라서 바꿀 수 있어요.
+              마을 정보로 자동 생성하거나, <b>실제 마을 사진</b>을 올리면 그 사진 그대로 수채화 배너로 그려줘요
+              (지형·건물을 지어내지 않아요). 만든 배너는 아래에 쌓이고 골라서 바꿀 수 있어요.
             </span>
           </div>
         </div>

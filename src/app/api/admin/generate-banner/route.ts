@@ -58,8 +58,10 @@ async function buildSceneBrief(
  */
 
 export async function POST(req: NextRequest) {
-  const { villageId } = (await req.json().catch(() => ({}))) as {
+  const { villageId, refImageBase64, refMediaType } = (await req.json().catch(() => ({}))) as {
     villageId?: string;
+    refImageBase64?: string; // 실제 사진(참조) → 그대로 수채화로 리페인트
+    refMediaType?: string;
   };
 
   const user = await getSessionUser();
@@ -92,28 +94,54 @@ export async function POST(req: NextRequest) {
     .join(" ")
     .slice(0, 400);
 
-  // 1) 마을 사실을 근거로 구체적 장면 브리프 생성 (실패 시 기본 힌트 사용)
-  const brief = await buildSceneBrief(apiKey, { name, region, oneLiner, storyText });
-  const grounded = brief || `Concept: ${oneLiner}. Atmosphere hints: ${storyText}.`;
+  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";
+  const useRef = Boolean(refImageBase64);
 
-  // 2) 배너는 '배경 풍경만' 생성. 마스코트는 별도 투명 PNG로 프론트에서 오버레이.
-  const prompt = `Wide panoramic hero banner illustration for a Jeju Island (제주도) rural village tourism homepage — BACKGROUND SCENERY ONLY.
+  // 참조 사진 없을 때만 마을 사실 기반 장면 브리프 생성
+  let brief: string | null = null;
+  let prompt: string;
+  if (useRef) {
+    // 실제 사진을 '그대로' 수채화 배너로 리페인트 — 지형/건물/배치를 지어내지 않음
+    prompt = `Repaint the attached REAL photograph as a soft warm watercolor storybook illustration for a village tourism homepage banner.
+Keep the SAME real scene faithfully: the same terrain, buildings, roads, fields, trees and overall layout as in the photo. Do NOT invent or add anything that is not in the photo — no extra sea, no extra mountains, no new buildings.
+Style: hand-painted watercolor picture-book aesthetic, cozy and inviting, gentle natural light. Wide panoramic banner composition.
+Absolutely NO cartoon mascot characters, NO people as the focus, NO text, no words, no letters, no logos.`;
+  } else {
+    brief = await buildSceneBrief(apiKey, { name, region, oneLiner, storyText });
+    const grounded = brief || `Concept: ${oneLiner}. Atmosphere hints: ${storyText}.`;
+    prompt = `Wide panoramic hero banner illustration for a Jeju Island (제주도) rural village tourism homepage — BACKGROUND SCENERY ONLY.
 Village: "${name}" in ${region}, Jeju Island, South Korea.
 Scene (grounded in this real village): ${grounded}
 ${JEJU_ANCHOR}
 Style: soft warm watercolor storybook illustration, hand-painted picture-book aesthetic, cozy and inviting, gentle natural light.
 Composition: keep the focal scenery within the CENTER 60% safe zone so the image crops well on both wide desktop and tall mobile screens; let the left and right edges be ambient scenery (sky, fields, sea) that is safe to crop. Leave the lower-left area visually calm (dark-friendly) for overlay text, and the right side uncluttered for a character overlay.
 Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no words, no letters, no logos.`;
-
-  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
-  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";
+  }
 
   try {
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, size: "1536x1024", quality, n: 1 }),
-    });
+    let res: Response;
+    if (useRef) {
+      const form = new FormData();
+      form.append("model", model);
+      form.append("prompt", prompt);
+      form.append("size", "1536x1024");
+      form.append("quality", quality);
+      form.append("n", "1");
+      const refBuf = Buffer.from(refImageBase64!, "base64");
+      form.append("image", new Blob([refBuf], { type: refMediaType || "image/png" }), "reference.png");
+      res = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+    } else {
+      res = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, prompt, size: "1536x1024", quality, n: 1 }),
+      });
+    }
     const data = await res.json();
     if (!res.ok) {
       return NextResponse.json(
