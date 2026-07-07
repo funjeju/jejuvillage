@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Search, Newspaper, Compass, Map as MapIcon } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
-import { FenceDivider } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
 import { LiveFeedCard } from "@/components/feed/feed-card";
 import { HomeCtaBar } from "@/components/home/home-cta";
@@ -130,8 +129,6 @@ export function HomeClient({
           <EmptyHint icon={<Newspaper />} text="아직 올라온 소식이 없어요. 첫 소식을 기다리는 중!" />
         )}
       </Container>
-
-      <FenceDivider />
 
       {/* ── 지금 예약 가능한 체험 (구매 가능 상품) ── */}
       <Container className="py-12">

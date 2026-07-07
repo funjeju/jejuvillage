@@ -24,12 +24,12 @@ export interface SectionLayout {
 }
 
 /** 기본 레이아웃(마을 미설정 시) */
+// 마스코트는 별도 섹션이 아니라 히어로 오버레이로 노출 (mascot 키는 저장된 레이아웃 호환용으로만 유지)
 export const DEFAULT_LAYOUT: SectionLayout[] = [
   { key: "hero", enabled: true },
   { key: "story", enabled: true },
   { key: "feed", enabled: true },
   { key: "products", enabled: true },
-  { key: "mascot", enabled: true },
   { key: "location", enabled: true },
 ];
 
@@ -38,7 +38,7 @@ export const SECTION_META: Record<SectionKey, { label: string; desc: string; fix
   story: { label: "마을 이야기", desc: "역사·설화·자원 스토리" },
   feed: { label: "소식 피드", desc: "실시간 사진 소식" },
   products: { label: "체험상품", desc: "예약 가능한 체험 카드" },
-  mascot: { label: "마스코트", desc: "마을 캐릭터 소개" },
+  mascot: { label: "마스코트", desc: "(히어로에 표시됨)" },
   location: { label: "오시는 길", desc: "지도 + 주소" },
 };
 export type PublishStatus = "draft" | "published";

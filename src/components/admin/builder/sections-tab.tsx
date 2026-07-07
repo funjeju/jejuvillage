@@ -38,6 +38,7 @@ export function SectionsTab({
       </p>
       <div className="space-y-2">
         {layout.map((s, i) => {
+          if (s.key === "mascot") return null; // 마스코트는 히어로 오버레이로 통합됨
           const meta = SECTION_META[s.key];
           const isHero = s.key === "hero";
           return (

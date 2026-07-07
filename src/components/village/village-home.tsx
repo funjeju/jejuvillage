@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Loader2, Wand2 } from "lucide-react";
+import { MapPin, BarChart3, Pencil, Check, X, Loader2, Wand2 } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { Postit } from "@/components/ui/postit";
-import { FenceDivider, GrassBand } from "@/components/decor/nature";
-import { Mascot } from "@/components/decor/mascot";
+import { GrassBand } from "@/components/decor/nature";
 import { LiveFeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
 import { BgmPlayer } from "@/components/village/bgm-player";
@@ -16,7 +15,6 @@ import { isFirebaseConfigured } from "@/lib/firebase/client";
 import {
   listenVillageFeed,
   saveStory,
-  saveThemePartial,
   applyGeneratedHomepage,
   getRawContentOnce,
 } from "@/lib/repo/client";
@@ -118,26 +116,21 @@ export function VillageHome({
   };
   const visible = layout.filter((s) => s.enabled && hasContent(s.key));
 
-  const sections: Record<SectionKey, React.ReactNode> = {
+  // 마스코트는 별도 섹션 없이 히어로 오버레이로만 노출. 디바이더도 사용하지 않음(깔끔하게).
+  const sections: Partial<Record<SectionKey, React.ReactNode>> = {
     hero: <HeroSection key="hero" bundle={bundle} isManager={isManager} />,
     story: <StorySection key="story" bundle={bundle} isManager={isManager} />,
     feed: <FeedSection key="feed" posts={posts} />,
     products: <ProductsSection key="products" bundle={bundle} />,
-    mascot: <MascotSection key="mascot" bundle={bundle} isManager={isManager} />,
     location: <LocationSection key="location" bundle={bundle} />,
   };
 
   return (
     <div style={themeVars} className="bg-[var(--color-bg)]">
-      {visible.map((s, i) => {
-        // 히어로가 아닌, 실제 노출되는 섹션들 사이에만 돌담 divider 1개
-        const showDivider = i > 0 && s.key !== "hero" && visible[i - 1].key !== "hero";
-        return (
-          <div key={s.key}>
-            {showDivider && <FenceDivider />}
-            {sections[s.key]}
-          </div>
-        );
+      {visible.map((s) => {
+        const node = sections[s.key];
+        if (!node) return null;
+        return <div key={s.key}>{node}</div>;
       })}
       <GrassBand />
     </div>
@@ -489,87 +482,6 @@ function ProductsSection({ bundle }: { bundle: VillageBundle }) {
         ))}
       </div>
     </Container>
-  );
-}
-
-/* ── 마스코트 섹션 ── */
-function MascotSection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
-  const { theme, village } = bundle;
-  const [name, setName] = useState(theme?.mascotName ?? "");
-  const [desc, setDesc] = useState(theme?.mascotDesc ?? "");
-  const [editOpen, setEditOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const hasMascot = Boolean(theme?.mascotUrl || theme?.mascotName);
-  if (!hasMascot) return null;
-
-  async function saveMascot() {
-    setSaving(true);
-    try {
-      await saveThemePartial(village.id, { mascotName: name || null, mascotDesc: desc || null });
-      setEditOpen(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section className="bg-green-100/50 py-12">
-      <Container className="flex flex-col items-center text-center gap-4">
-        <Mascot
-          src={theme?.mascotUrl}
-          name={theme?.mascotName}
-          say={theme?.mascotName ? `안녕! 나는 ${theme.mascotName}!` : undefined}
-          size={120}
-        />
-        <div>
-          <h2 className="font-display text-2xl inline-flex items-center gap-2">
-            <Sparkles size={20} className="text-[var(--accent)]" />
-            {theme?.mascotName ?? "마을 친구"}
-          </h2>
-          {theme?.mascotDesc && <p className="mt-2 max-w-md text-ink-700">{theme.mascotDesc}</p>}
-        </div>
-        {isManager && (
-          <button
-            onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-md hover:bg-green-100"
-          >
-            <Pencil size={12} /> 마스코트 편집
-          </button>
-        )}
-      </Container>
-
-      {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)} />
-          <div className="relative w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-lg">마스코트 편집</h3>
-              <button onClick={() => setEditOpen(false)}><X size={20} /></button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-ink-500 mb-1 block">이름</label>
-                <input value={name} onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-ink-500 mb-1 block">한줄 소개</label>
-                <input value={desc} onChange={(e) => setDesc(e.target.value)}
-                  className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600" />
-              </div>
-              <p className="text-xs text-ink-500">이미지 교체는 <Link href="/admin/homepage" target="_blank" className="text-green-700 underline">홈페이지 만들기 → 디자인</Link> 탭에서 가능해요.</p>
-              <div className="flex gap-2 pt-1">
-                <button onClick={saveMascot} disabled={saving}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 저장
-                </button>
-                <button onClick={() => setEditOpen(false)} className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold">취소</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
   );
 }
 
