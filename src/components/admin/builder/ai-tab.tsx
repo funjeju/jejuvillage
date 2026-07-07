@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Check, Wand2 } from "lucide-react";
+import { Sparkles, Loader2, Check, Wand2, RefreshCcw } from "lucide-react";
 import { adminField } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
-import { applyGeneratedHomepage } from "@/lib/repo/client";
+import { applyGeneratedHomepage, getRawContentOnce } from "@/lib/repo/client";
 
 interface Generated {
   oneLiner: string;
@@ -30,9 +30,36 @@ export function AiTab({
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [retidy, setRetidy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
+
+  /** 이미 저장된(정리 안 된) 내용을 불러와 AI로 다시 다듬기 */
+  async function retidyExisting() {
+    setError(null);
+    setRetidy(true);
+    try {
+      const existing = await getRawContentOnce(villageId);
+      if (existing.trim().length < 20) {
+        setError("다시 다듬을 기존 내용이 없어요. 아래에 마을 정보를 붙여넣어 주세요.");
+        return;
+      }
+      setRaw(existing);
+      const res = await fetch("/api/admin/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId, villageName, rawText: existing }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "구성 실패");
+      setResult(data.data);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRetidy(false);
+    }
+  }
 
   async function generate() {
     setError(null);
@@ -83,6 +110,20 @@ export function AiTab({
           마을 소개·역사·설화·자원·특산물 등을 아는 대로 통째로 붙여넣으면, 한줄 소개와
           이야기 섹션·마스코트·강조색을 자동으로 만들어요. 결과는 미리 보고 적용해요.
         </p>
+        <div className="mt-3 rounded-xl bg-white/70 p-3">
+          <p className="text-xs text-ink-700">
+            이미 올린 내용이 원문 그대로 길게 나온다면, 아래 버튼으로 <b>핵심만 다시 다듬을</b> 수 있어요.
+          </p>
+          <button
+            type="button"
+            onClick={retidyExisting}
+            disabled={retidy || busy}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-green-800 border border-green-700 hover:bg-green-100 disabled:opacity-50"
+          >
+            {retidy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+            {retidy ? "다듬는 중…" : "기존 내용 AI로 다시 다듬기"}
+          </button>
+        </div>
       </div>
 
       <textarea

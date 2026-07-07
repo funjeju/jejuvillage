@@ -93,6 +93,10 @@ export function ReportEditor() {
         } as State);
       }
       setLoaded(true);
+    }).catch((e) => {
+      // 리포트 문서가 없거나 규칙 미배포 등으로 실패해도 빈 폼으로 편집 가능하게
+      console.warn("[report] 불러오기 실패:", (e as Error).message);
+      setLoaded(true);
     });
   }, [village.id]);
 

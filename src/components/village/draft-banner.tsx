@@ -52,7 +52,7 @@ export function DraftBanner({
             <button
               onClick={handleRequest}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3 py-1 text-xs font-semibold text-brown-700 shadow-sm hover:bg-green-50 disabled:opacity-60 transition-colors"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3 py-1 text-xs font-semibold text-brown-600 shadow-sm hover:bg-green-50 disabled:opacity-60 transition-colors"
             >
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
               게시 요청하기

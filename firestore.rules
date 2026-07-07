@@ -37,6 +37,12 @@ service cloud.firestore {
         allow write: if canManage(vid);
       }
 
+      // 관광인식 리포트: 게시 마을은 공개 읽기, 편집·저장은 운영자만.
+      match /report/{rid} {
+        allow read: if villagePublished(vid) || canManage(vid);
+        allow write: if canManage(vid);
+      }
+
       // 소식: 공개(마을 published) 읽기 허용, 통합피드(global)는 필터로 선별.
       match /feed_posts/{pid} {
         allow read: if villagePublished(vid) || canManage(vid);

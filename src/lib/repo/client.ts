@@ -8,6 +8,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  getDocs,
   query,
   where,
   orderBy,
@@ -370,6 +371,24 @@ export async function saveStory(
     { villageId, sectionKey, title, body, order: 1 },
     { merge: true }
   );
+}
+
+/** 현재 저장된 마을 원문(한줄소개 + 스토리 본문)을 모아 반환 — AI 재구성 입력용 */
+export async function getRawContentOnce(villageId: string): Promise<string> {
+  const db = clientDb();
+  const [vSnap, storiesSnap] = await Promise.all([
+    getDoc(doc(db, paths.village(villageId))),
+    getDocs(query(collection(db, paths.stories(villageId)), orderBy("order", "asc"))),
+  ]);
+  const parts: string[] = [];
+  const oneLiner = vSnap.data()?.oneLiner;
+  if (oneLiner) parts.push(String(oneLiner));
+  storiesSnap.docs.forEach((d) => {
+    const s = d.data();
+    if (s?.title) parts.push(String(s.title));
+    if (s?.body) parts.push(String(s.body));
+  });
+  return parts.join("\n\n");
 }
 
 /** 게시 요청 (사무장 → 슈퍼관리자 승인 대기) */

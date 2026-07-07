@@ -24,19 +24,37 @@ const STORY_LABEL: Record<string, string> = {
   resource: "마을의 보물",
 };
 
-/** 마크다운 기호를 제거해 순수 텍스트로 반환 */
+/** 마크다운·기획서 형식 잔재를 제거해 순수 텍스트로 반환 */
 function stripMd(text: string): string {
   return text
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\|[-:\s|]+\|$/gm, "")
-    .replace(/^\|(.+)\|$/gm, (_, row: string) =>
+    .replace(/^#{1,6}\s*/gm, "")                         // ## 헤딩
+    .replace(/^\s*\d+[.)]\s+/gm, "")                     // "1. " 번호 매김
+    .replace(/^\|[-:\s|]+\|?$/gm, "")                    // 표 구분선
+    .replace(/^\|?(.+?)\|$/gm, (_, row: string) =>       // 표 행 → 가운뎃점
       row.split("|").map((c) => c.trim()).filter(Boolean).join(" · ")
     )
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/`(.+?)`/g, "$1")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^[-–—·•]\s*/gm, "")                        // 목록 기호
+    .replace(/\n{2,}/g, "\n")
     .trim();
+}
+
+/** 히어로 부제용: 마크다운 제거 후 첫 문장만 간결하게 */
+function cleanOneLiner(text: string): string {
+  const clean = stripMd(text).replace(/\n/g, " ").trim();
+  const firstSentence = clean.split(/(?<=[.!?。])\s|·/)[0] ?? clean;
+  return firstSentence.slice(0, 60);
+}
+
+/** 스토리 카드용: 마크다운 제거 후 앞 2~3문장(최대 180자)만 요약 노출 */
+function summarize(text: string, maxLen = 180): string {
+  const clean = stripMd(text).replace(/\n+/g, " ").trim();
+  if (clean.length <= maxLen) return clean;
+  const cut = clean.slice(0, maxLen);
+  const lastStop = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("다 "), cut.lastIndexOf("요 "));
+  return (lastStop > 60 ? cut.slice(0, lastStop + 1) : cut).trim() + "…";
 }
 
 export function VillageHome({
@@ -233,7 +251,7 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
           </div>
           <h1 className="mt-1 font-display text-4xl sm:text-5xl text-white drop-shadow">{village.name}</h1>
           {village.oneLiner && (
-            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{village.oneLiner}</p>
+            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{cleanOneLiner(village.oneLiner)}</p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {theme?.bgmUrl && <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />}
@@ -273,14 +291,19 @@ function StorySection({ bundle, isManager }: { bundle: VillageBundle; isManager:
   return (
     <>
       <Container className="py-12">
-        <SectionHeading eyebrow="📖 마을 이야기" title="느린 마을, 깊은 이야기" />
+        <SectionHeading eyebrow="📖 마을 이야기" title="느린 마을, 깊은 이야기" desc="이 마을의 핵심만 세 가지로 골라봤어요." />
         <div className="grid gap-5 md:grid-cols-3">
-          {stories.map((s, i) => (
+          {stories.slice(0, 3).map((s, i) => (
             <div key={s.id} className="group/card relative">
               <Postit tilt={i % 2 ? "right" : "left"} color={i % 2 ? "sky" : "cream"}>
-                <h3 className="font-display text-lg text-ink-900">{s.title || STORY_LABEL[s.sectionKey] || "이야기"}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-700 whitespace-pre-line">
-                  {stripMd(s.body)}
+                <span className="text-xs font-bold text-[var(--accent)]">
+                  {STORY_LABEL[s.sectionKey] || "이야기"}
+                </span>
+                <h3 className="mt-0.5 font-display text-lg text-ink-900 line-clamp-1">
+                  {s.title || STORY_LABEL[s.sectionKey] || "이야기"}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-700 line-clamp-5">
+                  {summarize(s.body)}
                 </p>
               </Postit>
               {isManager && (
