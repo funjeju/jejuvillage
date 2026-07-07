@@ -21,14 +21,19 @@ export function BgmPlayer({
   villageId: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
+  // 기본은 '재생 중' 상태로 표시 (자동재생이 잠시 막혀도 첫 터치에 바로 시작됨)
+  const [playing, setPlaying] = useState(true);
   const key = `jv_bgm_off_${villageId}`;
 
   // 자동재생 시도 → 막히면 첫 상호작용에서 시작
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (sessionStorage.getItem(key) === "1") return; // 사용자가 껐던 세션이면 자동재생 안 함
+    if (sessionStorage.getItem(key) === "1") {
+      // 사용자가 이 세션에서 직접 껐음 → 자동재생·재생표시 안 함
+      queueMicrotask(() => setPlaying(false));
+      return;
+    }
 
     let cleaned = false;
     const tryPlay = () =>
