@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * 마을 배경음악 — 화면 하단 고정 플로팅 플레이어.
- * - 페이지 진입 시 자동재생 시도. 브라우저가 막으면(자동재생 정책)
- *   사용자의 첫 터치/클릭/키 입력 순간 자동으로 시작한다.
- * - 하단 좌측 플로팅 버튼으로 언제든 재생/정지.
+ * - 기본 '재생 중' 표시 + 진입 즉시 자동재생 시도. 브라우저 정책으로 막히면
+ *   (크롬은 첫 방문 소리 자동재생 차단) 사용자의 첫 터치/클릭/키 입력에 자동 시작.
+ * - 버튼은 '의도 기반' 토글: 재생 중 표시일 때 누르면 무조건 정지, 정지 표시일 때 누르면 재생.
  * - 사용자가 직접 끄면(sessionStorage) 같은 세션에선 다시 자동재생하지 않는다.
  */
 export function BgmPlayer({
@@ -21,41 +21,34 @@ export function BgmPlayer({
   villageId: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // 기본은 '재생 중' 상태로 표시 (자동재생이 잠시 막혀도 첫 터치에 바로 시작됨)
-  const [playing, setPlaying] = useState(true);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const key = `jv_bgm_off_${villageId}`;
+  // 세션에서 직접 끈 적 없으면 기본 '재생 중' 표시
+  const [playing, setPlaying] = useState(() =>
+    typeof window === "undefined" ? true : sessionStorage.getItem(key) !== "1"
+  );
 
-  // 자동재생 시도 → 막히면 첫 상호작용에서 시작
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (sessionStorage.getItem(key) === "1") {
-      // 사용자가 이 세션에서 직접 껐음 → 자동재생·재생표시 안 함
-      queueMicrotask(() => setPlaying(false));
-      return;
-    }
+    if (sessionStorage.getItem(key) === "1") return; // 이 세션에서 껐음 → 자동재생 안 함
 
     let cleaned = false;
-    const tryPlay = () =>
-      el
-        .play()
-        .then(() => {
-          setPlaying(true);
-          cleanup();
-        })
-        .catch(() => {});
     const cleanup = () => {
       if (cleaned) return;
       cleaned = true;
-      window.removeEventListener("pointerdown", tryPlay);
-      window.removeEventListener("keydown", tryPlay);
-      window.removeEventListener("touchstart", tryPlay);
+      window.removeEventListener("pointerdown", onFirstInteract);
+      window.removeEventListener("keydown", onFirstInteract);
+    };
+    const onFirstInteract = (e: Event) => {
+      // 플레이어 버튼 위 상호작용은 토글에 맡김 (재생→즉시정지 경쟁 방지)
+      if (wrapRef.current && e.target instanceof Node && wrapRef.current.contains(e.target)) return;
+      el.play().then(cleanup).catch(() => {});
     };
 
-    tryPlay(); // 즉시 시도
-    window.addEventListener("pointerdown", tryPlay);
-    window.addEventListener("keydown", tryPlay);
-    window.addEventListener("touchstart", tryPlay);
+    el.play().then(cleanup).catch(() => {}); // 즉시 시도 (허용 브라우저면 바로 재생)
+    window.addEventListener("pointerdown", onFirstInteract);
+    window.addEventListener("keydown", onFirstInteract);
 
     return () => {
       cleanup();
@@ -68,9 +61,10 @@ export function BgmPlayer({
     const el = audioRef.current;
     if (!el) return;
     if (playing) {
+      // '재생 중' 표시 상태에서 누름 = 정지 의도 → 무조건 정지
       el.pause();
       setPlaying(false);
-      sessionStorage.setItem(key, "1"); // 직접 끔 → 이 세션에선 자동재생 중단
+      sessionStorage.setItem(key, "1");
     } else {
       try {
         await el.play();
@@ -83,11 +77,12 @@ export function BgmPlayer({
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-40">
+    <div ref={wrapRef} className="fixed bottom-4 left-4 z-40">
       <audio ref={audioRef} src={src} loop={loop} preload="auto" />
       <button
         type="button"
         onClick={toggle}
+        suppressHydrationWarning
         aria-pressed={playing}
         aria-label={playing ? "배경음악 정지" : "배경음악 재생"}
         className={cn(
