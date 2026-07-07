@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { paths } from "@/lib/firebase/paths";
 import { getSessionUser } from "@/lib/auth/session";
 import { villageCreateSchema } from "@/lib/schemas";
+import { geocodeVillage } from "@/lib/geocode";
 import { FieldValue } from "firebase-admin/firestore";
 
 /**
@@ -27,6 +28,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = adminDb();
+    // 좌표 미입력(또는 제주 중심 기본값)이면 마을 이름·지역으로 자동 지오코딩
+    let lat = input.lat;
+    let lng = input.lng;
+    const isDefaultCenter =
+      lat != null && lng != null && Math.abs(lat - 33.38) < 0.001 && Math.abs(lng - 126.55) < 0.001;
+    if (lat == null || lng == null || isDefaultCenter) {
+      const geo = await geocodeVillage(input.name, input.region);
+      lat = geo.lat;
+      lng = geo.lng;
+    }
+
     const ref = db.doc(paths.village(input.slug));
     if ((await ref.get()).exists) {
       return NextResponse.json(
@@ -39,8 +51,8 @@ export async function POST(req: NextRequest) {
       slug: input.slug,
       name: input.name,
       region: input.region,
-      lat: input.lat,
-      lng: input.lng,
+      lat,
+      lng,
       oneLiner: input.oneLiner,
       status: "draft",
       lastPostedAt: null,

@@ -285,15 +285,15 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
           <div className="absolute inset-0 bg-gradient-to-b from-sky-300 to-green-600" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-        {/* 배너 위 마스코트 안내 (있을 때만) */}
+        {/* 마스코트 오버레이 — 배너 우측 하단에 자연스럽게 서 있는 형태 (마을명과 겹치지 않음) */}
         {theme?.mascotUrl && (
-          <div className="absolute right-3 top-3 sm:right-5 sm:top-5 z-10 hidden sm:block">
-            <Mascot
+          <div className="pointer-events-none absolute bottom-0 right-1 sm:right-8 md:right-14 z-10 h-36 w-36 sm:h-56 sm:w-56 md:h-72 md:w-72">
+            <Image
               src={theme.mascotUrl}
-              name={theme.mascotName}
-              say={theme.mascotName ? `${theme.mascotName}이 반겨요!` : "어서와요!"}
-              size={72}
-              flip
+              alt={theme.mascotName ?? "마을 마스코트"}
+              fill
+              sizes="(max-width:640px) 144px, 288px"
+              className="object-contain object-bottom drop-shadow-[0_10px_18px_rgba(0,0,0,0.35)]"
             />
           </div>
         )}

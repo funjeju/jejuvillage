@@ -31,7 +31,6 @@ export function VillageOnboarding({ userName }: { userName: string }) {
   );
 }
 
-const JEJU = { lat: 33.38, lng: 126.55 };
 const AUDIO_MAX_MB = 8;
 
 function Wizard({ userName }: { userName: string }) {
@@ -110,13 +109,12 @@ function Wizard({ userName }: { userName: string }) {
 
   async function generate() {
     setError(null);
+    // 좌표는 보내지 않는다 → 서버가 마을 이름·지역으로 자동 지오코딩
     const parsed = villageCreateSchema.safeParse({
       name,
       region,
       slug,
       oneLiner: "",
-      lat: JEJU.lat,
-      lng: JEJU.lng,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "마을 이름·지역·영문주소를 확인해 주세요.");

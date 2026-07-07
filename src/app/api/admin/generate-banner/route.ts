@@ -14,9 +14,8 @@ export const maxDuration = 120;
  */
 
 export async function POST(req: NextRequest) {
-  const { villageId, mascotVisual } = (await req.json().catch(() => ({}))) as {
+  const { villageId } = (await req.json().catch(() => ({}))) as {
     villageId?: string;
-    mascotVisual?: string;
   };
 
   const user = await getSessionUser();
@@ -49,16 +48,12 @@ export async function POST(req: NextRequest) {
     .join(" ")
     .slice(0, 400);
 
-  const mascotClause = mascotVisual
-    ? `Feature this village mascot character prominently on one side, kept fully inside the central safe zone: ${mascotVisual}.`
-    : "";
-
-  const prompt = `Wide panoramic hero banner illustration for a Korean rural village tourism homepage.
+  // 배너는 '배경 풍경만' 생성한다. 마스코트는 별도의 투명 PNG로 만들어 프론트에서 오버레이.
+  const prompt = `Wide panoramic hero banner illustration for a Korean rural village tourism homepage — BACKGROUND SCENERY ONLY.
 Village: "${name}" in ${region}, South Korea (Jeju Island). Concept: ${oneLiner}. Atmosphere hints: ${storyText}.
-${mascotClause}
 Style: soft warm watercolor storybook illustration, hand-painted picture-book aesthetic, cozy and inviting, gentle natural light.
-Composition: keep ALL important subjects (mascot, focal scenery) within the CENTER 60% safe zone so the image crops well on both wide desktop and tall mobile screens; let the left and right edges be ambient scenery (sky, fields, sea) that is safe to crop.
-Absolutely no text, no words, no letters, no logos.`;
+Composition: keep the focal scenery within the CENTER 60% safe zone so the image crops well on both wide desktop and tall mobile screens; let the left and right edges be ambient scenery (sky, fields, sea) that is safe to crop. Leave the lower-left area visually calm (dark-friendly) for overlay text, and the right side uncluttered for a character overlay.
+Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no words, no letters, no logos.`;
 
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
   const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";

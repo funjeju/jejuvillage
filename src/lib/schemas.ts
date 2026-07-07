@@ -101,8 +101,15 @@ export const villageCreateSchema = z.object({
   name: z.string().trim().min(1, "마을명을 입력해 주세요.").max(40),
   region: z.string().trim().min(1, "지역을 입력해 주세요.").max(40),
   oneLiner: z.string().trim().max(120).default(""),
-  lat: z.coerce.number().min(33).max(34),
-  lng: z.coerce.number().min(126).max(127),
+  // 좌표는 선택 — 비우면 서버가 마을 이름·지역으로 위치를 자동 지오코딩한다.
+  lat: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.coerce.number().min(33).max(34).optional()
+  ),
+  lng: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.coerce.number().min(126).max(127).optional()
+  ),
 });
 export type VillageCreateInput = z.infer<typeof villageCreateSchema>;
 

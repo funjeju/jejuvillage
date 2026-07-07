@@ -1,8 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import { getStorage } from "firebase-admin/storage";
 import { adminDb } from "@/lib/firebase/admin";
 import { getSessionUser, canManageVillage } from "@/lib/auth/session";
 import { paths } from "@/lib/firebase/paths";
+
+/**
+ * 마젠타(#FF00FF 근처) 단색 배경을 투명으로 키잉.
+ * gpt-image-2가 background:transparent 를 지원하지 않아(API 확인),
+ * 마젠타 배경으로 생성한 뒤 크로마키로 투명 PNG를 만든다.
+ */
+async function chromaKeyMagenta(png: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(png)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
+    const dist = Math.sqrt((r - 255) ** 2 + g * g + (b - 255) ** 2);
+    if (dist < 110) {
+      data[i + 3] = 0;
+      data[i] = data[i + 1] = data[i + 2] = 0; // 뷰어 호환: 투명픽셀 RGB 정리
+    } else if (dist < 190) {
+      const a = Math.round((255 * (dist - 110)) / 80);
+      data[i + 3] = Math.min(data[i + 3], a);
+      const spill = Math.max(0, Math.min(r, b) - g); // 경계 마젠타 끼 제거
+      data[i] = r - Math.round(spill * 0.6);
+      data[i + 2] = b - Math.round(spill * 0.6);
+    }
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .png()
+    .toBuffer();
+}
+
+const MAGENTA_BG =
+  "Background must be a completely FLAT, UNIFORM, PURE MAGENTA color (#FF00FF) — absolutely no gradients, no shadows, no vignette, just solid magenta everywhere behind the character.";
 
 export const maxDuration = 120;
 
@@ -16,7 +51,7 @@ export const maxDuration = 120;
 const STYLE: Record<string, string> = {
   hero: "Wide cinematic hero background. Soft watercolor storybook illustration of Jeju Island Korea, warm, peaceful, cozy, hand-painted picture-book aesthetic. No text, no words, no letters.",
   mascot:
-    "Cute friendly mascot character, full body, storybook illustration, simple soft solid background, Jeju Island Korea theme, adorable. No text, no words.",
+    "Cute friendly mascot character, ONE full-body front-facing figure, storybook illustration, Jeju Island Korea theme, adorable. No text, no words.",
   asset:
     "Decorative illustration asset, soft watercolor storybook style, Jeju Island Korea theme. No text, no words.",
 };
@@ -69,7 +104,7 @@ export async function POST(req: NextRequest) {
         `${prompt.trim()}\n\nUse the attached image as the exact visual reference. ` +
         `Reproduce the SAME character/subject faithfully — identical design, colors, outfit, face, proportions and art style. ` +
         (k === "mascot"
-          ? "Isolate the single main mascot as ONE full-body, front-facing figure, centered on a clean soft pastel background. Remove any character-sheet grid, turnaround poses, color swatches, labels and text."
+          ? `Isolate the single main mascot as ONE full-body, front-facing figure, centered. Remove any character-sheet grid, turnaround poses, color swatches, labels and text. ${MAGENTA_BG}`
           : "Keep it faithful to the reference. No text, no words.");
       const form = new FormData();
       form.append("model", model);
@@ -96,7 +131,13 @@ export async function POST(req: NextRequest) {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ model, prompt: composed, size, quality, n: 1 }),
+        body: JSON.stringify({
+          model,
+          prompt: k === "mascot" ? `${composed}\n\n${MAGENTA_BG}` : composed,
+          size,
+          quality,
+          n: 1,
+        }),
       });
     }
     const data = await res.json();
@@ -111,11 +152,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "생성 결과가 비어 있어요." }, { status: 502 });
     }
 
-    // 2) Firebase Storage 업로드
+    // 2) Firebase Storage 업로드 (마스코트는 마젠타 크로마키 → 투명 PNG)
     const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const objectPath = `villages/${villageId}/generated/${k}-${id}.png`;
-    const buffer = Buffer.from(b64, "base64");
+    let buffer = Buffer.from(b64, "base64");
+    if (k === "mascot") {
+      buffer = await chromaKeyMagenta(buffer);
+    }
     await getStorage()
       .bucket(bucketName)
       .file(objectPath)

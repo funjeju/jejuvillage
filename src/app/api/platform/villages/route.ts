@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { paths } from "@/lib/firebase/paths";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform";
 import { villageCreateSchema } from "@/lib/schemas";
+import { geocodeVillage } from "@/lib/geocode";
 import { FieldValue } from "firebase-admin/firestore";
 
 /**
@@ -31,12 +32,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "이미 존재하는 slug 입니다." }, { status: 409 });
     }
 
+    // 좌표 미입력 시 마을 이름·지역으로 자동 지오코딩
+    let lat = input.lat;
+    let lng = input.lng;
+    if (lat == null || lng == null) {
+      const geo = await geocodeVillage(input.name, input.region);
+      lat = geo.lat;
+      lng = geo.lng;
+    }
+
     await ref.set({
       slug: input.slug,
       name: input.name,
       region: input.region,
-      lat: input.lat,
-      lng: input.lng,
+      lat,
+      lng,
       oneLiner: input.oneLiner,
       status: "draft",
       lastPostedAt: null,
