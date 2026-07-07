@@ -98,14 +98,13 @@ export function ImageUploader({
         type="file"
         accept="image/*"
         multiple
-        capture="environment"
         onChange={(e) => handleFiles(e.target.files)}
         className="hidden"
       />
 
       <div className="mt-2 flex items-center gap-2 text-xs text-ink-500">
         <Camera size={13} />
-        모바일에선 카메라로 바로 촬영할 수 있어요. 최대 {max}장 · 장당 {MAX_MB}MB
+        앨범에서 고르거나 촬영할 수 있어요. 최대 {max}장 · 장당 {MAX_MB}MB
       </div>
       {error && <p className="mt-1 text-xs font-semibold text-[var(--accent)]">{error}</p>}
     </div>
