@@ -126,6 +126,65 @@ export async function uploadImageTo(
   return { assetId: id, url, thumbUrl, width: display.width, height: display.height };
 }
 
+/**
+ * 마스코트 캐릭터 시트에서 대표 포즈 영역만 잘라 업로드.
+ * box 는 정규화(0~1) 좌표. 잘라낸 뒤 480px 장변으로 리사이즈해 저장한다.
+ */
+export async function cropAndUploadMascot(
+  villageId: string,
+  file: File,
+  box: { x: number; y: number; w: number; h: number }
+): Promise<UploadedImage> {
+  const bmp = await loadBitmap(file);
+  const iw = "width" in bmp ? bmp.width : 0;
+  const ih = "height" in bmp ? bmp.height : 0;
+
+  // 정규화 박스를 픽셀로 (범위 보정)
+  const sx = Math.max(0, Math.round(box.x * iw));
+  const sy = Math.max(0, Math.round(box.y * ih));
+  const sw = Math.min(iw - sx, Math.round(box.w * iw)) || iw;
+  const sh = Math.min(ih - sy, Math.round(box.h * ih)) || ih;
+
+  // 장변 480 기준 스케일
+  const scale = Math.min(1, 600 / Math.max(sw, sh));
+  const dw = Math.round(sw * scale);
+  const dh = Math.round(sh * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = dw;
+  canvas.height = dh;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bmp as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh);
+
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("크롭 실패"))), "image/webp", 0.9)
+  );
+
+  const id = uid();
+  const storage = clientStorage();
+  const fileRef = ref(storage, `villages/${villageId}/mascot/${id}.webp`);
+  await uploadBytes(fileRef, blob, { contentType: "image/webp" });
+  const url = await getDownloadURL(fileRef);
+  return { assetId: id, url, thumbUrl: url, width: dw, height: dh };
+}
+
+/** File → base64(순수, prefix 제외) + mediaType */
+export async function fileToBase64(
+  file: File
+): Promise<{ base64: string; mediaType: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const comma = dataUrl.indexOf(",");
+  return {
+    base64: dataUrl.slice(comma + 1),
+    mediaType: file.type || "image/png",
+  };
+}
+
 /** 오디오(BGM) 업로드 — 원본 그대로 (형식/용량 검증은 호출측) */
 export async function uploadAudio(
   villageId: string,

@@ -2,9 +2,14 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Music, ImagePlus, Sparkles, Wand2 } from "lucide-react";
+import { Loader2, Music, ImagePlus, Sparkles, Wand2, ScanFace, ImageIcon } from "lucide-react";
 import { adminField, adminLabel } from "@/components/admin/ui";
-import { uploadImageTo, uploadAudio } from "@/lib/firebase/storage";
+import {
+  uploadImageTo,
+  uploadAudio,
+  cropAndUploadMascot,
+  fileToBase64,
+} from "@/lib/firebase/storage";
 
 export interface DesignState {
   colorPrimary: string;
@@ -38,9 +43,75 @@ export function DesignTab({
   const [error, setError] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState<null | "hero" | "mascot">(null);
+  const [sheetBusy, setSheetBusy] = useState(false);
+  const [sheetMsg, setSheetMsg] = useState<string | null>(null);
+  const [bannerBusy, setBannerBusy] = useState(false);
+  const [mascotVisual, setMascotVisual] = useState("");
   const heroRef = useRef<HTMLInputElement>(null);
   const mascotRef = useRef<HTMLInputElement>(null);
+  const sheetRef = useRef<HTMLInputElement>(null);
   const bgmRef = useRef<HTMLInputElement>(null);
+
+  /** 마스코트 캐릭터 시트 → Vision 분석 → 대표 포즈 크롭 → 자동 채움 */
+  async function pickSheet(file?: File) {
+    if (!file) return;
+    setError(null);
+    setSheetMsg(null);
+    setSheetBusy(true);
+    try {
+      const { base64, mediaType } = await fileToBase64(file);
+      const res = await fetch("/api/admin/analyze-mascot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId, imageBase64: base64, mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "시트 분석 실패");
+      const a = data.data as {
+        mascotName: string;
+        mascotDesc: string;
+        accentColor: string;
+        cropBox: { x: number; y: number; w: number; h: number };
+        visualPrompt: string;
+      };
+      // 대표 포즈 크롭 업로드
+      const up = await cropAndUploadMascot(villageId, file, a.cropBox);
+      setMascotVisual(a.visualPrompt);
+      onChange({
+        mascotUrl: up.url,
+        mascotName: a.mascotName || value.mascotName,
+        mascotDesc: a.mascotDesc || value.mascotDesc,
+        colorAccent: a.accentColor || value.colorAccent,
+      });
+      setSheetMsg(
+        `“${a.mascotName || "마스코트"}” 인식 완료! 대표 포즈를 추출하고 이름·소개·강조색을 자동 채웠어요.`
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSheetBusy(false);
+    }
+  }
+
+  /** 마을 성격 + 마스코트로 대표 배너 자동 생성 */
+  async function generateBanner() {
+    setError(null);
+    setBannerBusy(true);
+    try {
+      const res = await fetch("/api/admin/generate-banner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId, mascotVisual: mascotVisual || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "배너 생성 실패");
+      onChange({ heroUrl: data.url });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBannerBusy(false);
+    }
+  }
 
   async function generate(kind: "hero" | "mascot") {
     setError(null);
@@ -139,6 +210,36 @@ export function DesignTab({
         </div>
       </div>
 
+      {/* 마스코트 캐릭터 시트 자동 인식 */}
+      <div className="rounded-2xl border-2 border-dashed border-green-300 bg-green-50/60 p-4">
+        <p className="flex items-center gap-2 font-display text-lg">
+          <ScanFace size={18} className="text-green-700" /> 마스코트 캐릭터 시트로 자동 설정
+        </p>
+        <p className="mt-1 text-sm text-ink-700">
+          여러 포즈가 그려진 캐릭터 시트를 올리면, AI가 대표 포즈를 추출해 마스코트로 설정하고
+          이름·소개·강조색까지 자동으로 채워요. 배너에도 이 마스코트를 활용해요.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => sheetRef.current?.click()}
+            disabled={sheetBusy}
+            className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+          >
+            {sheetBusy ? <Loader2 size={15} className="animate-spin" /> : <ScanFace size={15} />}
+            {sheetBusy ? "인식 중… (몇십 초)" : "캐릭터 시트 올리기"}
+          </button>
+          <input
+            ref={sheetRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => pickSheet(e.target.files?.[0])}
+          />
+          {sheetMsg && <span className="text-xs font-semibold text-green-700">{sheetMsg}</span>}
+        </div>
+      </div>
+
       {/* 색상 */}
       <div>
         <label className={adminLabel}>테마 색상</label>
@@ -164,12 +265,26 @@ export function DesignTab({
         </div>
       </div>
 
-      {/* 대표 이미지 */}
+      {/* 대표 이미지(배너) */}
       <div>
-        <label className={adminLabel}>대표(히어로) 이미지</label>
-        <div className="flex items-center gap-4">
+        <label className={adminLabel}>대표 배너 이미지</label>
+        <div className="flex flex-wrap items-center gap-4">
           <UploadThumb url={value.heroUrl} ratio="h-24 w-40" onClick={() => heroRef.current?.click()} loading={uploading === "hero"} />
           <input ref={heroRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage("hero", e.target.files?.[0])} />
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={generateBanner}
+              disabled={bannerBusy}
+              className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+            >
+              {bannerBusy ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
+              {bannerBusy ? "배너 생성 중…" : "AI 배너 자동 생성"}
+            </button>
+            <span className="text-xs text-ink-500">
+              마을 성격·마스코트를 반영해 배너를 만들어요. 한 장으로 PC·모바일에 맞춰 보여요.
+            </span>
+          </div>
         </div>
       </div>
 

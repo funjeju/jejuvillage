@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Camera, Loader2 } from "lucide-react";
+import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Loader2 } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { Postit } from "@/components/ui/postit";
 import { FenceDivider, GrassBand } from "@/components/decor/nature";
@@ -202,11 +202,31 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
     <section className="relative overflow-hidden">
       <div className="relative h-[52vh] min-h-[360px] w-full bg-green-700">
         {heroUrl ? (
-          <Image src={heroUrl} alt={village.name} fill priority sizes="100vw" className="object-cover" />
+          // 중앙 세이프존 유지: 데스크톱은 와이드 전체, 모바일은 센터 크롭 (한 장 대응)
+          <Image
+            src={heroUrl}
+            alt={village.name}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center"
+          />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-sky-300 to-green-600" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        {/* 배너 위 마스코트 안내 (있을 때만) */}
+        {theme?.mascotUrl && (
+          <div className="absolute right-3 top-3 sm:right-5 sm:top-5 z-10 hidden sm:block">
+            <Mascot
+              src={theme.mascotUrl}
+              name={theme.mascotName}
+              say={theme.mascotName ? `${theme.mascotName}이 반겨요!` : "어서와요!"}
+              size={72}
+              flip
+            />
+          </div>
+        )}
         <Container className="relative flex h-full flex-col justify-end pb-10">
           <div className="flex items-center gap-2 text-white/90 text-sm font-semibold">
             <MapPin size={14} /> {village.region}
