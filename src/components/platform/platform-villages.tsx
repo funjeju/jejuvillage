@@ -105,10 +105,12 @@ function VillageRow({
   return (
     <Panel className="flex flex-wrap items-center justify-between gap-3 p-4">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-display text-lg">{village.name}</h3>
           {village.status === "published" ? (
             <Badge tone="green">게시중</Badge>
+          ) : village.publishRequestedAt ? (
+            <Badge tone="accent">게시 요청됨</Badge>
           ) : (
             <Badge tone="neutral">준비중</Badge>
           )}

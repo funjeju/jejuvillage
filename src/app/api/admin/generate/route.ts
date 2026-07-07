@@ -60,11 +60,11 @@ async function generateWithClaude(
     model: "claude-sonnet-5",
     max_tokens: 2000,
     system:
-      "너는 제주 마을 관광 홈페이지 기획자다. 주어진 마을 원문 정보를 바탕으로 따뜻하고 친근한 톤의 홈페이지 콘텐츠를 구성한다. 반드시 지정된 JSON 스키마로만 응답하고, 원문에 없는 사실은 지어내지 말고 비워둔다.",
+      "너는 제주 마을 관광 홈페이지 기획자다. 주어진 마을 원문 정보를 바탕으로 따뜻하고 친근한 톤의 홈페이지 콘텐츠를 구성한다. 반드시 지정된 JSON 스키마로만 응답하고, 원문에 없는 사실은 지어내지 말고 비워둔다. 절대 마크다운 문법(##, |, --, **, *, `) 을 사용하지 말 것. body 필드는 순수 문장으로만 구성된 자연스러운 한국어 산문이어야 한다. 핵심만 압축해 2~4문장으로 서술하되 여행자가 읽고 싶어지는 생동감 있는 표현을 써라.",
     messages: [
       {
         role: "user",
-        content: `다음은 "${villageName}" 마을의 원문 정보다. 이걸 토대로 홈페이지 콘텐츠를 구성해줘.
+        content: `다음은 "${villageName}" 마을의 원문 정보다. 표, 목록, 기획 양식 등 형식 데이터가 포함돼 있을 수 있다. 그 안에서 핵심 정보만 추출해 읽기 좋은 홈페이지 콘텐츠로 재작성해줘.
 
 원문:
 """
@@ -73,15 +73,15 @@ ${rawText.slice(0, 6000)}
 
 아래 JSON 스키마로만 응답(설명·코드펜스 없이 JSON만):
 {
-  "oneLiner": "마을을 한 문장으로 표현한 감성적 카피(40자 이내)",
+  "oneLiner": "마을을 한 문장으로 표현한 감성적 카피(40자 이내, 마크다운 금지)",
   "stories": [
-    {"sectionKey":"history","title":"짧은 제목","body":"역사/유래 (2~4문장)"},
-    {"sectionKey":"legend","title":"짧은 제목","body":"설화/이야기 (원문에 있으면, 없으면 이 항목 생략)"},
-    {"sectionKey":"resource","title":"짧은 제목","body":"자연·문화 자원 (2~4문장)"}
+    {"sectionKey":"history","title":"짧은 제목(10자 이내)","body":"역사/유래를 여행자 시선으로 서술한 2~3문장 산문. 마크다운·기호 금지."},
+    {"sectionKey":"legend","title":"짧은 제목(10자 이내)","body":"설화·전설을 흥미롭게 서술한 2~3문장. 없으면 이 항목 생략."},
+    {"sectionKey":"resource","title":"짧은 제목(10자 이내)","body":"이 마을에서만 볼 수 있는 자연·문화 자원을 핵심 3가지만 골라 한 문장씩 소개. 마크다운·기호 금지."}
   ],
-  "mascotName": "어울리는 마스코트 이름(원문 기반, 없으면 빈 문자열)",
+  "mascotName": "원문에 마스코트 이름이 있으면 그대로, 없으면 빈 문자열",
   "mascotDesc": "마스코트 한 줄 소개(없으면 빈 문자열)",
-  "colorAccent": "마을 분위기에 맞는 강조색 HEX(예: 장미마을이면 #e14b5a)"
+  "colorAccent": "마을 분위기에 맞는 강조색 HEX"
 }`,
       },
     ],
@@ -128,21 +128,42 @@ function normalize(j: any, source: "ai" | "heuristic"): GeneratedHomepage {
   };
 }
 
-/** 키 없거나 실패 시: 원문을 문단 단위로 나눠 최소 구성 */
+/** 마크다운·표 제거 후 순수 텍스트만 추출 */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+.*/gm, "")          // ## 헤딩 제거
+    .replace(/^\|[-:\s|]+\|$/gm, "")        // 표 구분선 제거
+    .replace(/^\|.+\|$/gm, (row) =>          // 표 행 → 쉼표 구분 문장
+      row.split("|").map((c) => c.trim()).filter(Boolean).join(", ")
+    )
+    .replace(/\*\*(.+?)\*\*/g, "$1")         // 볼드 제거
+    .replace(/\*(.+?)\*/g, "$1")             // 이탤릭 제거
+    .replace(/`(.+?)`/g, "$1")              // 코드 제거
+    .replace(/\n{3,}/g, "\n\n")             // 빈 줄 정리
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 8)            // 짧은 잔여 줄 제거
+    .join("\n")
+    .trim();
+}
+
+/** 키 없거나 실패 시: 원문을 정제해 최소 구성 */
 function heuristic(rawText: string): GeneratedHomepage {
-  const clean = rawText.replace(/\r/g, "").trim();
-  const paras = clean.split(/\n{2,}|\n/).map((p) => p.trim()).filter((p) => p.length > 10);
-  const oneLiner = (paras[0] ?? clean).slice(0, 60);
+  const clean = stripMarkdown(rawText.replace(/\r/g, ""));
+  const paras = clean.split(/\n{2,}|\n/).filter((p) => p.length > 15);
+  const firstPara = (paras[0] ?? clean).slice(0, 80);
+  const oneLiner = firstPara.replace(/[,·.]+$/, "").slice(0, 60);
   const stories: GeneratedHomepage["stories"] = [];
-  if (paras[0]) stories.push({ sectionKey: "history", title: "마을 소개", body: paras.slice(0, 2).join("\n") });
-  if (paras.length > 2)
-    stories.push({ sectionKey: "resource", title: "마을의 자원", body: paras.slice(2).join("\n").slice(0, 1000) });
+  if (paras.length >= 1)
+    stories.push({ sectionKey: "history", title: "마을 소개", body: paras.slice(0, 3).join(" ").slice(0, 500) });
+  if (paras.length > 3)
+    stories.push({ sectionKey: "resource", title: "마을의 자원", body: paras.slice(3, 7).join(" ").slice(0, 500) });
   return {
     oneLiner,
     stories,
     mascotName: "",
     mascotDesc: "",
-    colorAccent: "#e14b5a",
+    colorAccent: "#3e8e41",
     source: "heuristic",
   };
 }

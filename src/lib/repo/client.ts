@@ -358,6 +358,29 @@ export async function applyGeneratedHomepage(
   }
 }
 
+/** 스토리 단건 저장 (인라인 편집용) */
+export async function saveStory(
+  villageId: string,
+  sectionKey: string,
+  title: string,
+  body: string
+) {
+  await setDoc(
+    doc(clientDb(), `${paths.stories(villageId)}/${sectionKey}`),
+    { villageId, sectionKey, title, body, order: 1 },
+    { merge: true }
+  );
+}
+
+/** 게시 요청 (사무장 → 슈퍼관리자 승인 대기) */
+export async function requestPublish(villageId: string, userId: string) {
+  await updateDoc(doc(clientDb(), paths.village(villageId)), {
+    publishRequestedAt: serverTimestamp(),
+    publishRequestedBy: userId,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 // ── 관광인식 리포트 ──────────────────────────────────────────────────────
 
 export async function saveVillageReport(

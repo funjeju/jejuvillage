@@ -65,6 +65,9 @@ export interface Village {
   seasonTo?: number | null;
   /** 홈 섹션 순서·활성 (빌더 설정). 없으면 DEFAULT_LAYOUT */
   layout?: SectionLayout[] | null;
+  /** 게시 요청: 사무장이 요청 → 슈퍼관리자가 승인(status=published) */
+  publishRequestedAt?: number | null;
+  publishRequestedBy?: string | null;
   createdAt: number;
   updatedAt: number;
 }

@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, BarChart3 } from "lucide-react";
+import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Camera, Loader2 } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { Postit } from "@/components/ui/postit";
 import { FenceDivider, GrassBand } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
-import { FeedCard } from "@/components/feed/feed-card";
+import { LiveFeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
 import { BgmPlayer } from "@/components/village/bgm-player";
 import { LocationMap } from "@/components/map/location-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
-import { listenVillageFeed } from "@/lib/repo/client";
+import { listenVillageFeed, saveStory, saveThemePartial } from "@/lib/repo/client";
 import { DEFAULT_LAYOUT } from "@/lib/types";
-import type { VillageBundle, FeedPost, SectionKey } from "@/lib/types";
+import type { VillageBundle, FeedPost, SectionKey, VillageStory } from "@/lib/types";
 import type { CSSProperties } from "react";
 
 const STORY_LABEL: Record<string, string> = {
@@ -24,12 +24,28 @@ const STORY_LABEL: Record<string, string> = {
   resource: "마을의 보물",
 };
 
-/**
- * 마을 홈 템플릿 (S3) — "데이터만 바뀌면 어느 마을이든 렌더링".
- * 섹션은 village.layout(빌더 설정) 순서·활성에 따라 모듈로 렌더된다.
- * 데이터가 비면 자동 숨김. 테마 색상은 CSS 변수로 스와핑.
- */
-export function VillageHome({ bundle }: { bundle: VillageBundle }) {
+/** 마크다운 기호를 제거해 순수 텍스트로 반환 */
+function stripMd(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\|[-:\s|]+\|$/gm, "")
+    .replace(/^\|(.+)\|$/gm, (_, row: string) =>
+      row.split("|").map((c) => c.trim()).filter(Boolean).join(" · ")
+    )
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function VillageHome({
+  bundle,
+  isManager = false,
+}: {
+  bundle: VillageBundle;
+  isManager?: boolean;
+}) {
   const { village, theme } = bundle;
   const [posts, setPosts] = useState<FeedPost[]>(bundle.posts);
 
@@ -51,11 +67,11 @@ export function VillageHome({ bundle }: { bundle: VillageBundle }) {
   const active = layout.filter((s) => s.enabled);
 
   const sections: Record<SectionKey, React.ReactNode> = {
-    hero: <HeroSection key="hero" bundle={bundle} />,
-    story: <StorySection key="story" bundle={bundle} />,
+    hero: <HeroSection key="hero" bundle={bundle} isManager={isManager} />,
+    story: <StorySection key="story" bundle={bundle} isManager={isManager} />,
     feed: <FeedSection key="feed" posts={posts} />,
     products: <ProductsSection key="products" bundle={bundle} />,
-    mascot: <MascotSection key="mascot" bundle={bundle} />,
+    mascot: <MascotSection key="mascot" bundle={bundle} isManager={isManager} />,
     location: <LocationSection key="location" bundle={bundle} />,
   };
 
@@ -64,7 +80,6 @@ export function VillageHome({ bundle }: { bundle: VillageBundle }) {
       {active.map((s, i) => {
         const node = sections[s.key];
         if (!node) return null;
-        // 히어로 외 섹션 사이에 울타리 divider
         const divider =
           i > 0 && s.key !== "hero" && active[i - 1].key !== "hero" ? (
             <FenceDivider key={`div-${i}`} />
@@ -81,12 +96,109 @@ export function VillageHome({ bundle }: { bundle: VillageBundle }) {
   );
 }
 
-/* ── 개별 섹션 모듈 (데이터 없으면 각자 null 반환 → 자동 숨김) ── */
+/* ── 섹션 편집 래퍼 ── */
+function EditableSection({
+  label,
+  onEdit,
+  children,
+}: {
+  label: string;
+  onEdit?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group relative">
+      {children}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-md backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-100"
+        >
+          <Pencil size={12} /> {label} 편집
+        </button>
+      )}
+    </div>
+  );
+}
 
-function HeroSection({ bundle }: { bundle: VillageBundle }) {
+/* ── 인라인 텍스트 편집 모달 ── */
+function StoryEditModal({
+  story,
+  villageId,
+  onClose,
+  onSaved,
+}: {
+  story: VillageStory;
+  villageId: string;
+  onClose: () => void;
+  onSaved: (title: string, body: string) => void;
+}) {
+  const [title, setTitle] = useState(story.title);
+  const [body, setBody] = useState(story.body);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveStory(villageId, story.sectionKey, title, body);
+      onSaved(title, body);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl max-h-[90dvh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg">{STORY_LABEL[story.sectionKey] ?? story.sectionKey} 편집</h3>
+          <button onClick={onClose} className="text-ink-500 hover:text-ink-900"><X size={20} /></button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-ink-500 mb-1 block">제목</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-ink-500 mb-1 block">내용</label>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={8}
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600 resize-none leading-relaxed"
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+              저장하기
+            </button>
+            <button onClick={onClose} className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink-700">
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 히어로 섹션 ── */
+function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
   const { village, theme } = bundle;
   const heroUrl = theme?.heroUrl;
-  return (
+
+  const content = (
     <section className="relative overflow-hidden">
       <div className="relative h-[52vh] min-h-[360px] w-full bg-green-700">
         {heroUrl ? (
@@ -99,18 +211,12 @@ function HeroSection({ bundle }: { bundle: VillageBundle }) {
           <div className="flex items-center gap-2 text-white/90 text-sm font-semibold">
             <MapPin size={14} /> {village.region}
           </div>
-          <h1 className="mt-1 font-display text-4xl sm:text-5xl text-white drop-shadow">
-            {village.name}
-          </h1>
+          <h1 className="mt-1 font-display text-4xl sm:text-5xl text-white drop-shadow">{village.name}</h1>
           {village.oneLiner && (
-            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">
-              {village.oneLiner}
-            </p>
+            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{village.oneLiner}</p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {theme?.bgmUrl && (
-              <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />
-            )}
+            {theme?.bgmUrl && <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />}
             {bundle.reportEnabled && (
               <Link
                 href={`/v/${village.slug}/report`}
@@ -124,29 +230,70 @@ function HeroSection({ bundle }: { bundle: VillageBundle }) {
       </div>
     </section>
   );
-}
 
-function StorySection({ bundle }: { bundle: VillageBundle }) {
-  const { stories } = bundle;
-  if (!stories.length) return null;
+  if (!isManager) return content;
   return (
-    <Container className="py-12">
-      <SectionHeading eyebrow="📖 마을 이야기" title="느린 마을, 깊은 이야기" />
-      <div className="grid gap-5 md:grid-cols-3">
-        {stories.map((s, i) => (
-          <Postit key={s.id} tilt={i % 2 ? "right" : "left"} color={i % 2 ? "sky" : "cream"}>
-            <h3 className="font-display text-lg text-ink-900">
-              {s.title || STORY_LABEL[s.sectionKey] || "이야기"}
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-700 whitespace-pre-line">{s.body}</p>
-          </Postit>
-        ))}
-      </div>
-    </Container>
+    <EditableSection
+      label="대표 이미지"
+      onEdit={() => window.open("/admin/homepage", "_blank")}
+    >
+      {content}
+    </EditableSection>
   );
 }
 
+/* ── 스토리 섹션 ── */
+function StorySection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
+  const { village, stories: initialStories } = bundle;
+  const [stories, setStories] = useState(initialStories);
+  const [editing, setEditing] = useState<VillageStory | null>(null);
+
+  if (!stories.length) return null;
+
+  return (
+    <>
+      <Container className="py-12">
+        <SectionHeading eyebrow="📖 마을 이야기" title="느린 마을, 깊은 이야기" />
+        <div className="grid gap-5 md:grid-cols-3">
+          {stories.map((s, i) => (
+            <div key={s.id} className="group/card relative">
+              <Postit tilt={i % 2 ? "right" : "left"} color={i % 2 ? "sky" : "cream"}>
+                <h3 className="font-display text-lg text-ink-900">{s.title || STORY_LABEL[s.sectionKey] || "이야기"}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-700 whitespace-pre-line">
+                  {stripMd(s.body)}
+                </p>
+              </Postit>
+              {isManager && (
+                <button
+                  onClick={() => setEditing(s)}
+                  className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-ink-700 shadow-md opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-green-100"
+                >
+                  <Pencil size={11} /> 편집
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Container>
+      {editing && (
+        <StoryEditModal
+          story={editing}
+          villageId={village.id}
+          onClose={() => setEditing(null)}
+          onSaved={(title, body) => {
+            setStories((prev) =>
+              prev.map((s) => (s.id === editing.id ? { ...s, title, body } : s))
+            );
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/* ── 피드 섹션 ── */
 function FeedSection({ posts }: { posts: FeedPost[] }) {
+  const [activeId, setActiveId] = useState<string | null>(null);
   return (
     <Container id="feed" className="py-12 scroll-mt-20">
       <SectionHeading
@@ -155,9 +302,15 @@ function FeedSection({ posts }: { posts: FeedPost[] }) {
         desc="마을이 직접 전하는 실시간 사진 소식이에요."
       />
       {posts.length ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
           {posts.map((p) => (
-            <FeedCard key={p.id} post={p} />
+            <LiveFeedCard
+              key={p.id}
+              post={p}
+              active={activeId === p.villageId}
+              onActivate={setActiveId}
+              onDeactivate={() => setActiveId(null)}
+            />
           ))}
         </div>
       ) : (
@@ -169,6 +322,7 @@ function FeedSection({ posts }: { posts: FeedPost[] }) {
   );
 }
 
+/* ── 체험상품 섹션 ── */
 function ProductsSection({ bundle }: { bundle: VillageBundle }) {
   const { products } = bundle;
   if (!products.length) return null;
@@ -186,10 +340,26 @@ function ProductsSection({ bundle }: { bundle: VillageBundle }) {
   );
 }
 
-function MascotSection({ bundle }: { bundle: VillageBundle }) {
-  const { theme } = bundle;
+/* ── 마스코트 섹션 ── */
+function MascotSection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
+  const { theme, village } = bundle;
+  const [name, setName] = useState(theme?.mascotName ?? "");
+  const [desc, setDesc] = useState(theme?.mascotDesc ?? "");
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const hasMascot = Boolean(theme?.mascotUrl || theme?.mascotName);
   if (!hasMascot) return null;
+
+  async function saveMascot() {
+    setSaving(true);
+    try {
+      await saveThemePartial(village.id, { mascotName: name || null, mascotDesc: desc || null });
+      setEditOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <section className="bg-green-100/50 py-12">
       <Container className="flex flex-col items-center text-center gap-4">
@@ -206,11 +376,52 @@ function MascotSection({ bundle }: { bundle: VillageBundle }) {
           </h2>
           {theme?.mascotDesc && <p className="mt-2 max-w-md text-ink-700">{theme.mascotDesc}</p>}
         </div>
+        {isManager && (
+          <button
+            onClick={() => setEditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-md hover:bg-green-100"
+          >
+            <Pencil size={12} /> 마스코트 편집
+          </button>
+        )}
       </Container>
+
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)} />
+          <div className="relative w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-lg">마스코트 편집</h3>
+              <button onClick={() => setEditOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-ink-500 mb-1 block">이름</label>
+                <input value={name} onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-ink-500 mb-1 block">한줄 소개</label>
+                <input value={desc} onChange={(e) => setDesc(e.target.value)}
+                  className="w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-green-600" />
+              </div>
+              <p className="text-xs text-ink-500">이미지 교체는 <Link href="/admin/homepage" target="_blank" className="text-green-700 underline">홈페이지 만들기 → 디자인</Link> 탭에서 가능해요.</p>
+              <div className="flex gap-2 pt-1">
+                <button onClick={saveMascot} disabled={saving}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 저장
+                </button>
+                <button onClick={() => setEditOpen(false)} className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold">취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
+/* ── 위치 섹션 ── */
 function LocationSection({ bundle }: { bundle: VillageBundle }) {
   const { village } = bundle;
   return (
