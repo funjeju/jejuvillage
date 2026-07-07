@@ -8,7 +8,7 @@ import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { FenceDivider } from "@/components/decor/nature";
 import { Mascot } from "@/components/decor/mascot";
-import { FeedCard, FeaturedFeedCard } from "@/components/feed/feed-card";
+import { LiveFeedCard } from "@/components/feed/feed-card";
 import { HomeCtaBar } from "@/components/home/home-cta";
 import { ProductCard } from "@/components/product/product-card";
 import { JejuMap } from "@/components/map/jeju-map";
@@ -54,7 +54,7 @@ export function HomeClient({
           />
           <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-white/25 to-cream-50" />
         </div>
-        <Container className="relative pt-16 pb-40 sm:pt-20 sm:pb-52 text-center">
+        <Container className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 text-center">
           <h1 className="font-display text-3xl sm:text-5xl leading-tight text-ink-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.6)]">
             제주 마을,
             <br className="sm:hidden" /> 지금 이 순간을 만나요
@@ -114,26 +114,17 @@ export function HomeClient({
           }
         />
         {posts.length ? (
-          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-            {/* 대표 카드 (최신) */}
-            <FeaturedFeedCard
-              post={posts[0]}
-              active={activeId === posts[0].villageId}
-              onActivate={setActiveId}
-              onDeactivate={() => setActiveId(null)}
-            />
-            {/* 나머지 카드뉴스 그리드 */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {posts.slice(1, 5).map((p) => (
-                <FeedCard
-                  key={p.id}
-                  post={p}
-                  active={activeId === p.villageId}
-                  onActivate={setActiveId}
-                  onDeactivate={() => setActiveId(null)}
-                />
-              ))}
-            </div>
+          /* 세로 9:16 카드 · 한 번에 2개 · 좌우 스냅 슬라이드 (각 카드는 해당 마을 페이지로 링크) */
+          <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
+            {posts.map((p) => (
+              <LiveFeedCard
+                key={p.id}
+                post={p}
+                active={activeId === p.villageId}
+                onActivate={setActiveId}
+                onDeactivate={() => setActiveId(null)}
+              />
+            ))}
           </div>
         ) : (
           <EmptyHint icon={<Newspaper />} text="아직 올라온 소식이 없어요. 첫 소식을 기다리는 중!" />

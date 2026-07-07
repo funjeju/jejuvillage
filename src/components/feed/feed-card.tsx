@@ -69,6 +69,73 @@ export function FeaturedFeedCard({
 }
 
 /**
+ * 세로 9:16 라이브 카드 (홈 S1 슬라이드 스트립).
+ * 사무장이 각 마을 페이지에서 올린 소식을 끌어와, 카드 전체가 해당 마을 홈으로 링크.
+ * 부모의 가로 스크롤 컨테이너 안에서 한 번에 2개씩 보이도록 폭을 잡는다.
+ */
+export function LiveFeedCard({
+  post,
+  onActivate,
+  onDeactivate,
+  active,
+}: {
+  post: FeedPost;
+  onActivate?: (villageId: string) => void;
+  onDeactivate?: () => void;
+  active?: boolean;
+}) {
+  const media = post.media[0];
+  return (
+    <Link
+      href={`/v/${post.villageSlug}#feed`}
+      onMouseEnter={() => onActivate?.(post.villageId)}
+      onMouseLeave={() => onDeactivate?.()}
+      className={cn(
+        "group relative block shrink-0 snap-start overflow-hidden rounded-[var(--radius-blob)] border shadow-[var(--shadow-card)] transition-all",
+        "w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.667rem)] lg:w-[calc(25%-0.75rem)]",
+        active ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/40" : "border-line/80"
+      )}
+    >
+      <div className="relative aspect-[9/16] w-full bg-green-100">
+        {media ? (
+          <Image
+            src={media.url || media.thumbUrl}
+            alt={post.caption}
+            fill
+            sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="grid h-full place-items-center text-green-700/40">사진</div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+
+        <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-bold text-white">
+          <span className="h-1.5 w-1.5 rounded-full bg-white" /> LIVE
+        </span>
+        {post.media.length > 1 && (
+          <span className="absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+            +{post.media.length - 1}
+          </span>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
+            <MapPin size={12} className="shrink-0" />
+            <span className="truncate">{post.villageName}</span>
+            <span className="text-white/50">·</span>
+            <time className="shrink-0 text-white/70">{timeAgo(post.publishedAt)}</time>
+          </div>
+          <p className="mt-1 font-display text-sm leading-snug line-clamp-2 drop-shadow">
+            {post.caption}
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
  * 실시간 사진 소식 카드 (S1/S6).
  * 포스트잇 스타일 캡션 + 마을명 + 시간.
  * onActivate/onDeactivate 로 지도 핀 하이라이트 연동(기획서 보강 아이디어 3).
