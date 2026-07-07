@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getSessionUser, canManageVillage } from "@/lib/auth/session";
 
 export const maxDuration = 60;
 
 /**
  * 마을 정보 원문 → 홈페이지 구성(한줄소개·스토리·마스코트·강조색)으로 구조화.
- * Claude API 사용, 키 없으면 휴리스틱 폴백.
+ * OpenAI(GPT-5 mini) 사용, 키 없으면 휴리스틱 폴백.
  * DB 에는 쓰지 않고 구조만 반환 → 운영자가 미리보고 [적용]한다.
  */
 
@@ -37,10 +36,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = process.env.OPENAI_API_KEY;
   try {
     const result = key
-      ? await generateWithClaude(key, rawText, villageName ?? "")
+      ? await generateWithOpenAI(key, rawText, villageName ?? "")
       : heuristic(rawText);
     return NextResponse.json({ ok: true, data: result });
   } catch (err) {
@@ -50,28 +49,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function generateWithClaude(
+async function generateWithOpenAI(
   apiKey: string,
   rawText: string,
   villageName: string
 ): Promise<GeneratedHomepage> {
-  const client = new Anthropic({ apiKey });
-  const msg = await client.messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 2000,
-    system:
-      "너는 제주 마을 관광 홈페이지 기획자다. 주어진 마을 원문 정보를 바탕으로 따뜻하고 친근한 톤의 홈페이지 콘텐츠를 구성한다. 반드시 지정된 JSON 스키마로만 응답하고, 원문에 없는 사실은 지어내지 말고 비워둔다. 절대 마크다운 문법(##, |, --, **, *, `) 을 사용하지 말 것. body 필드는 순수 문장으로만 구성된 자연스러운 한국어 산문이어야 한다. 핵심만 압축해 2~4문장으로 서술하되 여행자가 읽고 싶어지는 생동감 있는 표현을 써라.",
-    messages: [
-      {
-        role: "user",
-        content: `다음은 "${villageName}" 마을의 원문 정보다. 표, 목록, 기획 양식 등 형식 데이터가 포함돼 있을 수 있다. 그 안에서 핵심 정보만 추출해 읽기 좋은 홈페이지 콘텐츠로 재작성해줘.
+  const model = process.env.OPENAI_TEXT_MODEL || "gpt-5-mini";
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: 3000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "너는 제주 마을 관광 홈페이지 기획자다. 주어진 마을 원문 정보를 바탕으로 따뜻하고 친근한 톤의 홈페이지 콘텐츠를 구성한다. 반드시 지정된 JSON 스키마로만 응답하고, 원문에 없는 사실은 지어내지 말고 비워둔다. 절대 마크다운 문법(##, |, --, **, *, `) 을 사용하지 말 것. body 필드는 순수 문장으로만 구성된 자연스러운 한국어 산문이어야 한다. 핵심만 압축해 2~4문장으로 서술하되 여행자가 읽고 싶어지는 생동감 있는 표현을 써라.",
+        },
+        {
+          role: "user",
+          content: `다음은 "${villageName}" 마을의 원문 정보다. 표, 목록, 기획 양식 등 형식 데이터가 포함돼 있을 수 있다. 그 안에서 핵심 정보만 추출해 읽기 좋은 홈페이지 콘텐츠로 재작성해줘.
 
 원문:
 """
 ${rawText.slice(0, 6000)}
 """
 
-아래 JSON 스키마로만 응답(설명·코드펜스 없이 JSON만):
+아래 JSON 스키마로만 응답(JSON 외 텍스트 금지):
 {
   "oneLiner": "마을을 한 문장으로 표현한 감성적 카피(40자 이내, 마크다운 금지)",
   "stories": [
@@ -83,14 +89,13 @@ ${rawText.slice(0, 6000)}
   "mascotDesc": "마스코트 한 줄 소개(없으면 빈 문자열)",
   "colorAccent": "마을 분위기에 맞는 강조색 HEX"
 }`,
-      },
-    ],
+        },
+      ],
+    }),
   });
-
-  const text = msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message ?? "OpenAI 구성 실패");
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
   const json = extractJson(text);
   return normalize(json, "ai");
 }

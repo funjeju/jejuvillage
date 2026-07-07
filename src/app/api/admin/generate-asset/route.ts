@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
 
   const k = kind ?? "hero";
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+  const quality = process.env.OPENAI_IMAGE_QUALITY || "low";
   const composed = `${prompt.trim()}\n\n${STYLE[k] ?? STYLE.asset}`;
 
   try {
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
         model,
         prompt: composed,
         size: SIZE[k] ?? "1024x1024",
-        quality: "low",
+        quality,
         n: 1,
       }),
     });

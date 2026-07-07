@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getSessionUser, canManageVillage } from "@/lib/auth/session";
 
 export const maxDuration = 60;
 
 /**
- * 마스코트 캐릭터 시트 이미지 → Claude Vision 분석.
+ * 마스코트 캐릭터 시트 이미지 → OpenAI(GPT-5 mini) 비전 분석.
  * 시트에서 마스코트 정체성(이름·성격·소개)과 대표 포즈의 위치(크롭 박스),
  * 대표 색상을 추출한다. 실제 크롭은 클라이언트 canvas 에서 수행한다.
  */
@@ -36,40 +35,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "이미지가 없습니다." }, { status: 422 });
   }
 
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = process.env.OPENAI_API_KEY;
   if (!key) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY가 설정되지 않았어요." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "OPENAI_API_KEY가 설정되지 않았어요." }, { status: 400 });
   }
 
-  const mt = (mediaType ?? "image/png") as
-    | "image/png"
-    | "image/jpeg"
-    | "image/webp"
-    | "image/gif";
+  const mt = mediaType ?? "image/png";
+  const dataUrl = `data:${mt};base64,${imageBase64}`;
+  const model = process.env.OPENAI_TEXT_MODEL || "gpt-5-mini";
 
   try {
-    const client = new Anthropic({ apiKey: key });
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1200,
-      system:
-        "너는 캐릭터 디자인 분석가다. 주어진 마스코트 캐릭터 시트 이미지를 분석해 정체성과 대표 포즈 위치를 추출한다. 반드시 지정된 JSON 스키마로만 응답한다.",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mt, data: imageBase64 },
-            },
-            {
-              type: "text",
-              text: `이 캐릭터 시트를 분석해줘. 보통 좌측 상단 또는 가장 크게 그려진 것이 "대표 전신 포즈"다.
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_completion_tokens: 2500,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "너는 캐릭터 디자인 분석가다. 주어진 마스코트 캐릭터 시트 이미지를 분석해 정체성과 대표 포즈 위치를 추출한다. 반드시 지정된 JSON 스키마로만 응답한다.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `이 캐릭터 시트를 분석해줘. 보통 좌측 상단 또는 가장 크게 그려진 것이 "대표 전신 포즈"다.
 
-아래 JSON으로만 응답(설명·코드펜스 없이 JSON만):
+아래 JSON으로만 응답(JSON 외 텍스트 금지):
 {
   "mascotName": "시트에 적힌 캐릭터 이름(한글). 없으면 빈 문자열",
   "mascotDesc": "이 마스코트를 방문자에게 소개하는 친근한 한 문장(한글, 30자 내외)",
@@ -80,16 +76,17 @@ export async function POST(req: NextRequest) {
 }
 
 cropBox는 대표 전신 포즈 하나만 딱 감싸는 사각형을 이미지 대비 정규화 비율(0~1)로. x,y는 좌상단, w,h는 너비/높이. 여백을 약간 포함해도 좋다.`,
-            },
-          ],
-        },
-      ],
+              },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      }),
     });
 
-    const text = msg.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message ?? "분석 실패");
+    const text: string = data?.choices?.[0]?.message?.content ?? "";
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1) throw new Error("분석 결과 파싱 실패");
