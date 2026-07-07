@@ -6,6 +6,50 @@ import { paths } from "@/lib/firebase/paths";
 
 export const maxDuration = 120;
 
+const HISTORY_MAX = 8;
+
+// 어떤 결과가 나와도 '명백히 제주'로 보이게 하는 고정 앵커
+const JEJU_ANCHOR =
+  "This MUST look unmistakably like Jeju Island, South Korea — real Jeju signatures: black basalt (volcanic) dry-stone walls (돌담/밭담), low stone or grey-tile roofed rural houses, tangerine (감귤) groves, green oreum (volcanic cones) and the silhouette of Hallasan mountain, and if coastal, dark volcanic rock shorelines. " +
+  "Absolutely NOT generic European/American/tropical scenery, NO snowy alps, NO palm-tree beaches, NO western cottages, NO skyscrapers.";
+
+/**
+ * 마을 사실(한줄소개·스토리)을 근거로, 제주에 실재하는 구체적 장면 브리프를 만든다.
+ * 텍스트 모델(gpt-5-mini)로 '실제 이 마을에 있을 법한' 요소만 뽑아 뜬금없는 그림을 방지.
+ * 실패하면 null → 호출측이 기본 템플릿으로 폴백.
+ */
+async function buildSceneBrief(
+  apiKey: string,
+  facts: { name: string; region: string; oneLiner: string; storyText: string }
+): Promise<string | null> {
+  const textModel = process.env.OPENAI_TEXT_MODEL || "gpt-5-mini";
+  const sys =
+    "You are an art director for a Jeju Island (제주도) village tourism site. " +
+    "From the given Korean village facts, write ONE concise English paragraph (max 60 words) describing a background scenery illustration that is FAITHFUL to this specific village. " +
+    "Only include concrete visual elements that are grounded in the facts (named landmarks, local resources, terrain, crops, sea/mountain). " +
+    "If facts are thin, fall back to authentic generic Jeju rural scenery. Do NOT invent famous foreign landmarks. No people-as-focus, no mascot, no text in the image.";
+  const usr = `Village: ${facts.name} (${facts.region}, Jeju Island).\nOne-liner: ${facts.oneLiner}\nStories/resources: ${facts.storyText}`;
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: textModel,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: usr },
+        ],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return null;
+    const brief: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    return brief.length > 10 ? brief.slice(0, 600) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 마을 성격 + 마스코트를 반영한 대표 배너(히어로) 자동 생성.
  * - 마을명/한줄소개/스토리로 분위기를 파악하고, (있으면) 마스코트 시각 묘사를 합성
@@ -48,9 +92,15 @@ export async function POST(req: NextRequest) {
     .join(" ")
     .slice(0, 400);
 
-  // 배너는 '배경 풍경만' 생성한다. 마스코트는 별도의 투명 PNG로 만들어 프론트에서 오버레이.
-  const prompt = `Wide panoramic hero banner illustration for a Korean rural village tourism homepage — BACKGROUND SCENERY ONLY.
-Village: "${name}" in ${region}, South Korea (Jeju Island). Concept: ${oneLiner}. Atmosphere hints: ${storyText}.
+  // 1) 마을 사실을 근거로 구체적 장면 브리프 생성 (실패 시 기본 힌트 사용)
+  const brief = await buildSceneBrief(apiKey, { name, region, oneLiner, storyText });
+  const grounded = brief || `Concept: ${oneLiner}. Atmosphere hints: ${storyText}.`;
+
+  // 2) 배너는 '배경 풍경만' 생성. 마스코트는 별도 투명 PNG로 프론트에서 오버레이.
+  const prompt = `Wide panoramic hero banner illustration for a Jeju Island (제주도) rural village tourism homepage — BACKGROUND SCENERY ONLY.
+Village: "${name}" in ${region}, Jeju Island, South Korea.
+Scene (grounded in this real village): ${grounded}
+${JEJU_ANCHOR}
 Style: soft warm watercolor storybook illustration, hand-painted picture-book aesthetic, cozy and inviting, gentle natural light.
 Composition: keep the focal scenery within the CENTER 60% safe zone so the image crops well on both wide desktop and tall mobile screens; let the left and right edges be ambient scenery (sky, fields, sea) that is safe to crop. Leave the lower-left area visually calm (dark-friendly) for overlay text, and the right side uncluttered for a character overlay.
 Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no words, no letters, no logos.`;
@@ -86,15 +136,27 @@ Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no word
       objectPath
     )}?alt=media`;
 
-    // 테마 heroUrl 반영
-    await db.doc(paths.themeDoc(villageId)).set({ villageId, heroUrl: url }, { merge: true });
+    // 배너 히스토리(최신순, 중복 제거, 최대 HISTORY_MAX) 유지 + heroUrl 반영
+    const themeSnap = await db.doc(paths.themeDoc(villageId)).get();
+    const prevHistory: string[] = Array.isArray(themeSnap.data()?.heroHistory)
+      ? themeSnap.data()!.heroHistory
+      : [];
+    const prevHero: string | undefined = themeSnap.data()?.heroUrl;
+    // 기존 heroUrl 도 히스토리에 포함해 나중에 되돌릴 수 있게
+    const history = [url, ...(prevHero ? [prevHero] : []), ...prevHistory]
+      .filter((u, i, arr) => u && arr.indexOf(u) === i)
+      .slice(0, HISTORY_MAX);
+
+    await db
+      .doc(paths.themeDoc(villageId))
+      .set({ villageId, heroUrl: url, heroHistory: history }, { merge: true });
 
     await db
       .collection(paths.mediaAssets)
       .add({ villageId, type: "image", url, source: "openai", kind: "banner", createdAt: Date.now() })
       .catch(() => {});
 
-    return NextResponse.json({ ok: true, url });
+    return NextResponse.json({ ok: true, url, history, grounded: Boolean(brief) });
   } catch (err) {
     return NextResponse.json(
       { error: "배너 생성 중 오류", detail: (err as Error).message },

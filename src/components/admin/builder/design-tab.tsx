@@ -16,6 +16,7 @@ export interface DesignState {
   colorAccent: string;
   colorBg: string;
   heroUrl: string | null;
+  heroHistory: string[];
   mascotUrl: string | null;
   mascotName: string;
   mascotDesc: string;
@@ -29,6 +30,11 @@ const PRESETS = [
   { label: "트렌디·MZ", primary: "#5c6bc0", accent: "#ff7043", bg: "#faf7ff" },
 ];
 const AUDIO_MAX_MB = 8;
+
+/** 중복 제거 + 최대 8개 유지 (최신순) */
+function dedupe(urls: (string | null | undefined)[]): string[] {
+  return urls.filter((u, i, arr): u is string => Boolean(u) && arr.indexOf(u) === i).slice(0, 8);
+}
 
 export function DesignTab({
   villageId,
@@ -46,7 +52,6 @@ export function DesignTab({
   const [sheetBusy, setSheetBusy] = useState(false);
   const [sheetMsg, setSheetMsg] = useState<string | null>(null);
   const [bannerBusy, setBannerBusy] = useState(false);
-  const [mascotVisual, setMascotVisual] = useState("");
   const heroRef = useRef<HTMLInputElement>(null);
   const mascotRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLInputElement>(null);
@@ -74,7 +79,6 @@ export function DesignTab({
         cropBox: { x: number; y: number; w: number; h: number };
         visualPrompt: string;
       };
-      setMascotVisual(a.visualPrompt);
 
       // 1) 시트를 '참조 이미지'로 넣어 gpt-image-2가 원본에 충실한 단독 캐릭터 생성 (image-to-image)
       let mascotUrl: string | null = null;
@@ -117,7 +121,7 @@ export function DesignTab({
     }
   }
 
-  /** 마을 성격 + 마스코트로 대표 배너 자동 생성 */
+  /** 마을 사실을 근거로 대표 배너 자동 생성 → 후보 갤러리에 추가 */
   async function generateBanner() {
     setError(null);
     setBannerBusy(true);
@@ -125,16 +129,25 @@ export function DesignTab({
       const res = await fetch("/api/admin/generate-banner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ villageId, mascotVisual: mascotVisual || undefined }),
+        body: JSON.stringify({ villageId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "배너 생성 실패");
-      onChange({ heroUrl: data.url });
+      // 서버가 관리하는 히스토리를 그대로 반영 (없으면 로컬 병합)
+      const history: string[] = Array.isArray(data.history)
+        ? data.history
+        : dedupe([data.url, ...(value.heroHistory ?? [])]);
+      onChange({ heroUrl: data.url, heroHistory: history });
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBannerBusy(false);
     }
+  }
+
+  /** 후보 배너 선택 → 대표로 전환 */
+  function selectBanner(url: string) {
+    onChange({ heroUrl: url });
   }
 
   async function generate(kind: "hero" | "mascot") {
@@ -152,7 +165,11 @@ export function DesignTab({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "이미지 생성 실패");
-      onChange(kind === "hero" ? { heroUrl: data.url } : { mascotUrl: data.url });
+      onChange(
+        kind === "hero"
+          ? { heroUrl: data.url, heroHistory: dedupe([data.url, ...(value.heroHistory ?? [])]) }
+          : { mascotUrl: data.url }
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -166,7 +183,11 @@ export function DesignTab({
     setUploading(kind);
     try {
       const up = await uploadImageTo(`villages/${villageId}/${kind}`, file, kind === "hero" ? 1920 : 600);
-      onChange(kind === "hero" ? { heroUrl: up.url } : { mascotUrl: up.url });
+      if (kind === "hero") {
+        onChange({ heroUrl: up.url, heroHistory: dedupe([up.url, ...(value.heroHistory ?? [])]) });
+      } else {
+        onChange({ mascotUrl: up.url });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -289,27 +310,69 @@ export function DesignTab({
         </div>
       </div>
 
-      {/* 대표 이미지(배너) */}
+      {/* 대표 이미지(배너) + 후보 갤러리 */}
       <div>
         <label className={adminLabel}>대표 배너 이미지</label>
         <div className="flex flex-wrap items-center gap-4">
           <UploadThumb url={value.heroUrl} ratio="h-24 w-40" onClick={() => heroRef.current?.click()} loading={uploading === "hero"} />
           <input ref={heroRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage("hero", e.target.files?.[0])} />
           <div className="flex flex-col gap-1.5">
-            <button
-              type="button"
-              onClick={generateBanner}
-              disabled={bannerBusy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
-            >
-              {bannerBusy ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
-              {bannerBusy ? "배너 생성 중…" : "AI 배너 자동 생성"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={generateBanner}
+                disabled={bannerBusy}
+                className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+              >
+                {bannerBusy ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
+                {bannerBusy ? "배너 생성 중… (약 30초)" : value.heroHistory?.length ? "배너 새로 생성" : "AI 배너 자동 생성"}
+              </button>
+              <button
+                type="button"
+                onClick={() => heroRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+              >
+                <ImagePlus size={15} /> 직접 업로드
+              </button>
+            </div>
             <span className="text-xs text-ink-500">
-              마을 성격·마스코트를 반영해 배너를 만들어요. 한 장으로 PC·모바일에 맞춰 보여요.
+              마을 정보를 근거로 제주다운 배너를 만들어요. 생성한 배너는 아래에 쌓이고, 골라서 바꿀 수 있어요.
             </span>
           </div>
         </div>
+
+        {/* 후보 갤러리 — 클릭하면 대표로 전환 */}
+        {value.heroHistory && value.heroHistory.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-2 text-xs font-semibold text-ink-500">
+              생성·업로드한 배너 ({value.heroHistory.length}) — 눌러서 대표로 선택
+            </p>
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              {value.heroHistory.map((url) => {
+                const active = url === value.heroUrl;
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => selectBanner(url)}
+                    className={`relative h-16 w-28 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                      active ? "border-green-700 ring-2 ring-green-300" : "border-line hover:border-green-400"
+                    }`}
+                    aria-pressed={active}
+                    title={active ? "현재 대표 배너" : "이 배너로 바꾸기"}
+                  >
+                    <Image src={url} alt="" fill sizes="112px" className="object-cover" />
+                    {active && (
+                      <span className="absolute bottom-0 right-0 rounded-tl-md bg-green-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        대표
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 마스코트 */}

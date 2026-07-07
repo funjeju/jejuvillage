@@ -182,6 +182,8 @@ export interface VillageTheme {
   colorBg: string;
   fontKey: string;
   heroUrl?: string | null;
+  /** 지금까지 생성/업로드한 배너 후보들 (최신순). 어드민에서 골라 heroUrl 로 전환 */
+  heroHistory?: string[] | null;
   mascotUrl?: string | null;
   mascotName?: string | null;
   mascotDesc?: string | null;
