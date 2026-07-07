@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/section";
 import { Sprout } from "lucide-react";
+import { HeaderAuth } from "@/components/layout/header-auth";
 
 /** 공개 영역 상단바 (기획서 S1 레이아웃) */
 export function SiteHeader() {
@@ -21,13 +22,7 @@ export function SiteHeader() {
           <Link href="/feed" className="px-2 sm:px-3 py-2 rounded-full whitespace-nowrap hover:bg-green-100">
             소식
           </Link>
-          <Link
-            href="/login"
-            className="ml-0.5 sm:ml-1 px-3 sm:px-4 py-2 rounded-full bg-green-700 text-white whitespace-nowrap hover:bg-green-800 transition-colors"
-          >
-            <span className="sm:hidden">로그인</span>
-            <span className="hidden sm:inline">운영자 로그인</span>
-          </Link>
+          <HeaderAuth />
         </nav>
       </Container>
     </header>
