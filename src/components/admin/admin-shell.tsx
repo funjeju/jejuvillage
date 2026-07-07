@@ -103,7 +103,7 @@ function Shell({
         <button onClick={() => setOpen(true)} aria-label="메뉴 열기">
           <Menu />
         </button>
-        <span className="font-display text-lg">{village.name} 관리</span>
+        <span className="font-display text-lg whitespace-nowrap truncate max-w-[55vw]">{village.name} 관리</span>
         <Link href={`/v/${village.slug}`} target="_blank" aria-label="마을 홈 보기">
           <ExternalLink size={20} />
         </Link>

@@ -52,7 +52,7 @@ export function StatCard({
   } as const;
   return (
     <div className="rounded-[var(--radius-blob)] bg-white border border-line/80 p-5 shadow-[var(--shadow-card)]">
-      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-bold", tones[tone])}>
+      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap", tones[tone])}>
         {label}
       </span>
       <p className="mt-2 font-display text-3xl">{value}</p>

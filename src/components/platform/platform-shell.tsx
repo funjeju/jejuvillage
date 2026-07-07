@@ -40,16 +40,19 @@ function Shell({ userName, children }: { userName: string; children: React.React
   return (
     <div className="min-h-dvh bg-cream-50">
       <header className="sticky top-0 z-40 border-b border-line bg-green-800 text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={22} />
-            <span className="font-display text-lg">제주마을 · 플랫폼 관리자</span>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2">
+            <ShieldCheck size={20} className="shrink-0" />
+            <span className="font-display text-base leading-tight whitespace-nowrap">
+              <span className="sm:hidden">플랫폼 관리자</span>
+              <span className="hidden sm:inline">제주마을 · 플랫폼 관리자</span>
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <span className="hidden text-sm text-green-100 sm:inline">{userName}</span>
             <button
               onClick={logout}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold hover:bg-white/25"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold whitespace-nowrap hover:bg-white/25"
             >
               <LogOut size={15} /> 로그아웃
             </button>
