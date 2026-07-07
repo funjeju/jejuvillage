@@ -151,6 +151,12 @@ h1, h2, h3, .font-display {
   animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
+/* BGM 이퀄라이저 바 */
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
 /* 구름 흐름 */
 @keyframes cloud-drift {
   from { transform: translateX(-2%); }

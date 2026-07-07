@@ -133,6 +133,10 @@ export function VillageHome({
         return <div key={s.key}>{node}</div>;
       })}
       <GrassBand />
+      {/* 마을 음악 — 하단 고정 플로팅 플레이어 (진입 시 자동재생 시도) */}
+      {theme?.bgmUrl && (
+        <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />
+      )}
     </div>
   );
 }
@@ -299,7 +303,6 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
             <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{subtitle}</p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {theme?.bgmUrl && <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />}
             {bundle.reportEnabled && (
               <Link
                 href={`/v/${village.slug}/report`}
