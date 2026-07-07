@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Sprout,
   LogOut,
@@ -16,7 +15,11 @@ import {
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context";
 import { adminField } from "@/components/admin/ui";
 import { villageCreateSchema } from "@/lib/schemas";
-import { uploadImageTo, uploadAudio } from "@/lib/firebase/storage";
+import {
+  uploadAudio,
+  fileToBase64,
+  cropAndUploadMascot,
+} from "@/lib/firebase/storage";
 import { applyGeneratedHomepage, saveThemePartial } from "@/lib/repo/client";
 import { isValidSlug } from "@/lib/utils";
 
@@ -39,12 +42,13 @@ function Wizard({ userName }: { userName: string }) {
   const [region, setRegion] = useState("");
   const [slug, setSlug] = useState("");
   const [desc, setDesc] = useState("");
-  const [mascotUrl, setMascotUrl] = useState<string | null>(null);
+  // 캐릭터 시트는 파일로 들고 있다가 생성 시 AI 파이프라인(분석→단독 캐릭터 생성)에 태운다
+  const [mascotFile, setMascotFile] = useState<File | null>(null);
+  const [mascotPreview, setMascotPreview] = useState<string | null>(null);
   const [mascotName, setMascotName] = useState("");
   const [bgmUrl, setBgmUrl] = useState<string | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [mascotBusy, setMascotBusy] = useState(false);
   const [bgmBusy, setBgmBusy] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,18 +80,14 @@ function Wizard({ userName }: { userName: string }) {
     }
   }
 
-  async function onMascot(file?: File) {
-    if (!file || !slugReady) return;
+  function onMascot(file?: File) {
+    if (!file) return;
     setError(null);
-    setMascotBusy(true);
-    try {
-      const up = await uploadImageTo(`villages/${slug}/mascot`, file, 600);
-      setMascotUrl(up.url);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setMascotBusy(false);
-    }
+    setMascotFile(file);
+    setMascotPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   }
 
   async function onBgm(file?: File) {
@@ -137,28 +137,96 @@ function Wizard({ userName }: { userName: string }) {
       setGenMsg("권한 설정 중…");
       await refreshSession();
 
-      // 설명이 있으면 AI 자동 구성
+      // ① 기획문서·설명 원문 → 방문자 친화 콘텐츠(한줄소개·3파트 이야기)로 정비
       if (desc.trim().length >= 20) {
-        setGenMsg("설명으로 홈페이지 구성 중…");
-        const g = await fetch("/api/admin/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ villageId: slug, villageName: name, rawText: desc }),
-        });
-        const gd = await g.json();
-        if (g.ok && gd.data) {
-          await applyGeneratedHomepage(slug, gd.data);
+        setGenMsg("마을 이야기를 보기 좋게 다듬는 중…");
+        try {
+          const g = await fetch("/api/admin/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ villageId: slug, villageName: name, rawText: desc }),
+          });
+          const gd = await g.json();
+          if (g.ok && gd.data) {
+            await applyGeneratedHomepage(slug, gd.data);
+          }
+        } catch {
+          /* 텍스트 정비 실패해도 생성은 계속 */
         }
       }
 
-      // 캐릭터·음악 반영
-      const themePatch: Record<string, unknown> = {};
-      if (mascotUrl) themePatch.mascotUrl = mascotUrl;
-      if (mascotName) themePatch.mascotName = mascotName;
-      if (bgmUrl) themePatch.bgmUrl = bgmUrl;
-      if (Object.keys(themePatch).length) {
-        setGenMsg("캐릭터·음악 넣는 중…");
-        await saveThemePartial(slug, themePatch);
+      // ② 캐릭터 시트 → 마스코트 자동 추출: 분석 후 단독 캐릭터 생성(실패 시 시트 크롭)
+      let mascotVisual: string | undefined;
+      if (mascotFile) {
+        setGenMsg("캐릭터 시트에서 마스코트 만드는 중…");
+        try {
+          const { base64, mediaType } = await fileToBase64(mascotFile);
+          const ar = await fetch("/api/admin/analyze-mascot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ villageId: slug, imageBase64: base64, mediaType }),
+          });
+          const ad = await ar.json();
+          if (ar.ok && ad.data) {
+            const a = ad.data as {
+              mascotName: string;
+              mascotDesc: string;
+              accentColor: string;
+              cropBox: { x: number; y: number; w: number; h: number };
+              visualPrompt: string;
+            };
+            mascotVisual = a.visualPrompt || undefined;
+
+            let url: string | null = null;
+            if (a.visualPrompt) {
+              try {
+                const gr = await fetch("/api/admin/generate-asset", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    villageId: slug,
+                    kind: "mascot",
+                    prompt: `${a.visualPrompt}. Single character only, full body, front-facing, centered, clean simple soft background, no reference sheet grid, no multiple poses.`,
+                  }),
+                });
+                const gd2 = await gr.json();
+                if (gr.ok && gd2.url) url = gd2.url;
+              } catch {
+                /* 생성 실패 → 크롭 폴백 */
+              }
+            }
+            if (!url) {
+              url = (await cropAndUploadMascot(slug, mascotFile, a.cropBox)).url;
+            }
+
+            const patch: Record<string, unknown> = { mascotUrl: url };
+            const finalName = mascotName || a.mascotName;
+            if (finalName) patch.mascotName = finalName;
+            if (a.mascotDesc) patch.mascotDesc = a.mascotDesc;
+            if (a.accentColor) patch.colorAccent = a.accentColor;
+            await saveThemePartial(slug, patch);
+          }
+        } catch {
+          /* 마스코트 실패해도 생성은 계속 */
+        }
+      }
+
+      // ③ 마을 성격 + 마스코트를 반영한 대표 배너 자동 생성 (heroUrl 서버 반영)
+      setGenMsg("마을 대표 배너 그리는 중… (약 30초)");
+      try {
+        await fetch("/api/admin/generate-banner", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ villageId: slug, mascotVisual }),
+        });
+      } catch {
+        /* 배너 실패해도 생성은 계속 — 편집 화면에서 재시도 가능 */
+      }
+
+      // ④ 음악 반영
+      if (bgmUrl) {
+        setGenMsg("배경음악 넣는 중…");
+        await saveThemePartial(slug, { bgmUrl });
       }
 
       setGenMsg("완성! 홈페이지로 이동해요…");
@@ -189,7 +257,8 @@ function Wizard({ userName }: { userName: string }) {
           {userName}님, 우리 마을 홈페이지 만들기 🌱
         </h1>
         <p className="mt-1.5 text-sm text-ink-700">
-          아래를 채우고 <b>생성하기</b>만 누르면 홈페이지가 뚝딱 만들어져요.
+          아래를 채우고 <b>생성하기</b>만 누르면 AI가 마을 이야기 정리, 마스코트 추출,
+          대표 배너까지 한 번에 만들어요. (약 1분)
         </p>
 
         {/* ① 마을 기본 */}
@@ -235,26 +304,27 @@ function Wizard({ userName }: { userName: string }) {
           <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => onPdf(e.target.files?.[0])} />
         </StepCard>
 
-        {/* ③ 캐릭터 */}
+        {/* ③ 캐릭터 시트 → 생성 시 AI가 마스코트 추출 */}
         <StepCard n={3} title="마을 캐릭터(마스코트)">
           <div className="flex items-start gap-4">
             <button
               type="button"
-              onClick={() => (slugReady ? mascotRef.current?.click() : setError("먼저 영문 주소를 입력해 주세요."))}
+              onClick={() => mascotRef.current?.click()}
               className="relative grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-2xl border-2 border-dashed border-line bg-white text-ink-500"
             >
-              {mascotUrl ? (
-                <Image src={mascotUrl} alt="" fill sizes="96px" className="object-contain" />
+              {mascotPreview ? (
+                // 로컬 미리보기(blob URL)라 next/image 대신 img 사용
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={mascotPreview} alt="캐릭터 시트 미리보기" className="h-full w-full object-contain" />
               ) : (
-                <span className="text-center text-xs"><ImagePlus className="mx-auto mb-1" /> 사진</span>
+                <span className="text-center text-xs"><ImagePlus className="mx-auto mb-1" /> 시트/사진</span>
               )}
-              {mascotBusy && <span className="absolute inset-0 grid place-items-center bg-white/60"><Loader2 className="animate-spin text-green-700" /></span>}
             </button>
             <div className="flex-1">
-              <input value={mascotName} onChange={(e) => setMascotName(e.target.value)} placeholder="캐릭터 이름 (예: 조수이)" className={adminField} />
+              <input value={mascotName} onChange={(e) => setMascotName(e.target.value)} placeholder="캐릭터 이름 (비우면 AI가 시트에서 읽어요)" className={adminField} />
               <p className="mt-2 text-xs text-ink-500">
-                캐릭터 이미지를 올려요. <span className="text-green-700">AI 생성</span>은 마을이 만들어진 뒤
-                편집 화면에서 쓸 수 있어요.
+                여러 포즈가 담긴 <b>캐릭터 시트</b>도 그대로 올리세요. 생성할 때 AI가 대표
+                캐릭터를 뽑아 마스코트로 만들고, 이름·소개·마을 색까지 자동으로 채워요.
               </p>
             </div>
           </div>
