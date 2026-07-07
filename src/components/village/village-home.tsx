@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Loader2 } from "lucide-react";
+import { MapPin, Sparkles, BarChart3, Pencil, Check, X, Loader2, Wand2 } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { Postit } from "@/components/ui/postit";
 import { FenceDivider, GrassBand } from "@/components/decor/nature";
@@ -13,7 +13,13 @@ import { ProductCard } from "@/components/product/product-card";
 import { BgmPlayer } from "@/components/village/bgm-player";
 import { LocationMap } from "@/components/map/location-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
-import { listenVillageFeed, saveStory, saveThemePartial } from "@/lib/repo/client";
+import {
+  listenVillageFeed,
+  saveStory,
+  saveThemePartial,
+  applyGeneratedHomepage,
+  getRawContentOnce,
+} from "@/lib/repo/client";
 import { DEFAULT_LAYOUT } from "@/lib/types";
 import type { VillageBundle, FeedPost, SectionKey, VillageStory } from "@/lib/types";
 import type { CSSProperties } from "react";
@@ -41,16 +47,29 @@ function stripMd(text: string): string {
     .trim();
 }
 
-/** 히어로 부제용: 마크다운 제거 후 첫 문장만 간결하게 */
+/** 기획서 내부 용어가 담긴 줄은 방문자에게 보여주지 않는다 */
+const JARGON =
+  /기획|상품화|포지셔닝|벤치마크|상징요소|타깃|전략|진단|SWOT|세일즈|재료 요약|리포트 강점/;
+
+function dropJargonLines(text: string): string {
+  return text
+    .split(/\n/)
+    .filter((l) => l.trim() && !JARGON.test(l))
+    .join("\n");
+}
+
+/** 히어로 부제용: 마크다운·기획 용어 제거 후 첫 문장만. 걸러지면 빈 문자열(숨김) */
 function cleanOneLiner(text: string): string {
-  const clean = stripMd(text).replace(/\n/g, " ").trim();
+  const clean = dropJargonLines(stripMd(text)).replace(/\n/g, " ").trim();
+  if (!clean) return "";
   const firstSentence = clean.split(/(?<=[.!?。])\s|·/)[0] ?? clean;
+  if (JARGON.test(firstSentence)) return "";
   return firstSentence.slice(0, 60);
 }
 
-/** 스토리 카드용: 마크다운 제거 후 앞 2~3문장(최대 180자)만 요약 노출 */
+/** 스토리 카드용: 마크다운·기획 용어 제거 후 앞 2~3문장(최대 180자)만 요약 노출 */
 function summarize(text: string, maxLen = 180): string {
-  const clean = stripMd(text).replace(/\n+/g, " ").trim();
+  const clean = dropJargonLines(stripMd(text)).replace(/\n+/g, " ").trim();
   if (clean.length <= maxLen) return clean;
   const cut = clean.slice(0, maxLen);
   const lastStop = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("다 "), cut.lastIndexOf("요 "));
@@ -82,7 +101,22 @@ export function VillageHome({
     : {};
 
   const layout = village.layout?.length ? village.layout : DEFAULT_LAYOUT;
-  const active = layout.filter((s) => s.enabled);
+
+  // 실제로 콘텐츠가 있는 섹션만 남긴다 (빈 섹션이 divider만 남겨 돌담이 겹치는 문제 방지)
+  const hasContent = (key: SectionKey): boolean => {
+    switch (key) {
+      case "story":
+        // 기획 용어만 남은(필터 후 빈) 스토리는 없는 것으로 취급
+        return bundle.stories.some((s) => summarize(s.body).length > 0);
+      case "products":
+        return bundle.products.length > 0;
+      case "mascot":
+        return Boolean(theme?.mascotUrl || theme?.mascotName);
+      default:
+        return true; // hero, feed, location 은 항상 노출
+    }
+  };
+  const visible = layout.filter((s) => s.enabled && hasContent(s.key));
 
   const sections: Record<SectionKey, React.ReactNode> = {
     hero: <HeroSection key="hero" bundle={bundle} isManager={isManager} />,
@@ -95,17 +129,13 @@ export function VillageHome({
 
   return (
     <div style={themeVars} className="bg-[var(--color-bg)]">
-      {active.map((s, i) => {
-        const node = sections[s.key];
-        if (!node) return null;
-        const divider =
-          i > 0 && s.key !== "hero" && active[i - 1].key !== "hero" ? (
-            <FenceDivider key={`div-${i}`} />
-          ) : null;
+      {visible.map((s, i) => {
+        // 히어로가 아닌, 실제 노출되는 섹션들 사이에만 돌담 divider 1개
+        const showDivider = i > 0 && s.key !== "hero" && visible[i - 1].key !== "hero";
         return (
           <div key={s.key}>
-            {divider}
-            {node}
+            {showDivider && <FenceDivider />}
+            {sections[s.key]}
           </div>
         );
       })}
@@ -215,6 +245,28 @@ function StoryEditModal({
 function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
   const { village, theme } = bundle;
   const heroUrl = theme?.heroUrl;
+  const [bannerBusy, setBannerBusy] = useState(false);
+  const [bannerErr, setBannerErr] = useState<string | null>(null);
+  const subtitle = village.oneLiner ? cleanOneLiner(village.oneLiner) : "";
+
+  /** 사무장 원클릭: 마을 성격+마스코트 반영 배너 생성 → heroUrl 반영 후 새로고침 */
+  async function generateBanner() {
+    setBannerErr(null);
+    setBannerBusy(true);
+    try {
+      const res = await fetch("/api/admin/generate-banner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId: village.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "배너 생성 실패");
+      window.location.reload();
+    } catch (e) {
+      setBannerErr((e as Error).message);
+      setBannerBusy(false);
+    }
+  }
 
   const content = (
     <section className="relative overflow-hidden">
@@ -250,8 +302,8 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
             <MapPin size={14} /> {village.region}
           </div>
           <h1 className="mt-1 font-display text-4xl sm:text-5xl text-white drop-shadow">{village.name}</h1>
-          {village.oneLiner && (
-            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{cleanOneLiner(village.oneLiner)}</p>
+          {subtitle && (
+            <p className="mt-2 max-w-2xl text-white/90 text-base sm:text-lg drop-shadow">{subtitle}</p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {theme?.bgmUrl && <BgmPlayer src={theme.bgmUrl} loop={theme.bgmLoop} villageId={village.id} />}
@@ -263,7 +315,20 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
                 <BarChart3 size={16} /> 관광 리포트 보기
               </Link>
             )}
+            {isManager && (
+              <button
+                onClick={generateBanner}
+                disabled={bannerBusy}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-card)] hover:opacity-90 disabled:opacity-60"
+              >
+                {bannerBusy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                {bannerBusy ? "배너 생성 중… (약 30초)" : heroUrl ? "배너 다시 생성" : "AI 배너 생성"}
+              </button>
+            )}
           </div>
+          {bannerErr && (
+            <p className="mt-2 text-sm font-semibold text-white bg-black/40 rounded-full px-3 py-1 w-fit">{bannerErr}</p>
+          )}
         </Container>
       </div>
     </section>
@@ -285,15 +350,59 @@ function StorySection({ bundle, isManager }: { bundle: VillageBundle; isManager:
   const { village, stories: initialStories } = bundle;
   const [stories, setStories] = useState(initialStories);
   const [editing, setEditing] = useState<VillageStory | null>(null);
+  const [tidying, setTidying] = useState(false);
+  const [tidyErr, setTidyErr] = useState<string | null>(null);
 
-  if (!stories.length) return null;
+  // 기획 용어만 남은 카드는 숨기고, 내용 있는 것만 노출
+  const shown = stories.filter((s) => summarize(s.body).length > 0);
+  if (!shown.length) return null;
+
+  /** 사무장 원클릭: 저장된 원문 전체를 AI로 재구성 → 한줄소개·스토리 3파트 교체 후 새로고침 */
+  async function retidy() {
+    setTidyErr(null);
+    setTidying(true);
+    try {
+      const rawText = await getRawContentOnce(village.id);
+      const res = await fetch("/api/admin/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId: village.id, villageName: village.name, rawText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "재구성 실패");
+      await applyGeneratedHomepage(village.id, data.data);
+      window.location.reload();
+    } catch (e) {
+      setTidyErr((e as Error).message);
+      setTidying(false);
+    }
+  }
 
   return (
     <>
       <Container className="py-12">
-        <SectionHeading eyebrow="📖 마을 이야기" title="느린 마을, 깊은 이야기" desc="이 마을의 핵심만 세 가지로 골라봤어요." />
+        <SectionHeading
+          eyebrow="📖 마을 이야기"
+          title="느린 마을, 깊은 이야기"
+          desc="이 마을의 핵심만 세 가지로 골라봤어요."
+          action={
+            isManager ? (
+              <button
+                onClick={retidy}
+                disabled={tidying}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-card)] hover:opacity-90 disabled:opacity-60"
+              >
+                {tidying ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                {tidying ? "다듬는 중…" : "AI로 다듬기"}
+              </button>
+            ) : undefined
+          }
+        />
+        {tidyErr && (
+          <p className="mb-3 rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">{tidyErr}</p>
+        )}
         <div className="grid gap-5 md:grid-cols-3">
-          {stories.slice(0, 3).map((s, i) => (
+          {shown.slice(0, 3).map((s, i) => (
             <div key={s.id} className="group/card relative">
               <Postit tilt={i % 2 ? "right" : "left"} color={i % 2 ? "sky" : "cream"}>
                 <span className="text-xs font-bold text-[var(--accent)]">

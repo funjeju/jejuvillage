@@ -52,7 +52,7 @@ export function DesignTab({
   const sheetRef = useRef<HTMLInputElement>(null);
   const bgmRef = useRef<HTMLInputElement>(null);
 
-  /** 마스코트 캐릭터 시트 → Vision 분석 → 대표 포즈 크롭 → 자동 채움 */
+  /** 마스코트 캐릭터 시트 → Vision 분석 → 단독 캐릭터 AI 생성(실패 시 시트 크롭) → 자동 채움 */
   async function pickSheet(file?: File) {
     if (!file) return;
     setError(null);
@@ -74,17 +74,41 @@ export function DesignTab({
         cropBox: { x: number; y: number; w: number; h: number };
         visualPrompt: string;
       };
-      // 대표 포즈 크롭 업로드
-      const up = await cropAndUploadMascot(villageId, file, a.cropBox);
       setMascotVisual(a.visualPrompt);
+
+      // 1) 시트 묘사를 바탕으로 깔끔한 단독 캐릭터 이미지를 새로 생성 (통짜 시트 배치 방지)
+      let mascotUrl: string | null = null;
+      if (a.visualPrompt) {
+        try {
+          const gen = await fetch("/api/admin/generate-asset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              villageId,
+              kind: "mascot",
+              prompt: `${a.visualPrompt}. Single character only, full body, front-facing, centered, clean simple soft background, no reference sheet grid, no multiple poses.`,
+            }),
+          });
+          const gd = await gen.json();
+          if (gen.ok && gd.url) mascotUrl = gd.url;
+        } catch {
+          /* 생성 실패 시 크롭 폴백 */
+        }
+      }
+      // 2) 폴백: 시트에서 대표 포즈만 크롭
+      if (!mascotUrl) {
+        const up = await cropAndUploadMascot(villageId, file, a.cropBox);
+        mascotUrl = up.url;
+      }
+
       onChange({
-        mascotUrl: up.url,
+        mascotUrl,
         mascotName: a.mascotName || value.mascotName,
         mascotDesc: a.mascotDesc || value.mascotDesc,
         colorAccent: a.accentColor || value.colorAccent,
       });
       setSheetMsg(
-        `“${a.mascotName || "마스코트"}” 인식 완료! 대표 포즈를 추출하고 이름·소개·강조색을 자동 채웠어요.`
+        `“${a.mascotName || "마스코트"}” 인식 완료! 단독 캐릭터를 만들어 마스코트로 설정하고 이름·소개·강조색을 채웠어요. 저장을 눌러 반영하세요.`
       );
     } catch (e) {
       setError((e as Error).message);
