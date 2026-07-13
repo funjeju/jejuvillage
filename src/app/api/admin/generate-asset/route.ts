@@ -88,6 +88,25 @@ export async function POST(req: NextRequest) {
   }
 
   const k = kind ?? "hero";
+
+  // AI 이미지 재생성 게이트: 슈퍼관리자 or 게시 승인(published) or 최초(해당 종류 이미지 없음)
+  {
+    const db = adminDb();
+    const [vSnap, tSnap] = await Promise.all([
+      db.doc(paths.village(villageId)).get(),
+      db.doc(paths.themeDoc(villageId)).get(),
+    ]);
+    const isSuper = user?.role === "platform_admin";
+    const approved = vSnap.data()?.status === "published";
+    const t = tSnap.data();
+    const hasExisting = k === "mascot" ? Boolean(t?.mascotUrl) : Boolean(t?.heroUrl);
+    if (!isSuper && !approved && hasExisting) {
+      return NextResponse.json(
+        { error: "게시 승인 후 이미지를 다시 생성할 수 있어요. 대시보드에서 게시 요청을 해주세요.", locked: true },
+        { status: 403 }
+      );
+    }
+  }
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
   const quality = process.env.OPENAI_IMAGE_QUALITY || "medium";
   const size = SIZE[k] ?? "1024x1024";

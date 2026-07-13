@@ -36,10 +36,13 @@ const DEFAULT_DESIGN: DesignState = {
 };
 
 export function HomepageBuilder() {
-  const { village } = useAdmin();
+  const { village, user } = useAdmin();
   const [tab, setTab] = useState<Tab>("ai");
   const [layout, setLayout] = useState<SectionLayout[]>(DEFAULT_LAYOUT);
   const [design, setDesign] = useState<DesignState>(DEFAULT_DESIGN);
+  const [status, setStatus] = useState<"draft" | "published">("draft");
+  // AI 이미지 재생성은 슈퍼관리자거나 게시 승인된 마을만
+  const aiLocked = user.role !== "platform_admin" && status !== "published";
   // Firebase 미설정이면 로드할 게 없으므로 처음부터 loaded
   const [loaded, setLoaded] = useState(() => !isFirebaseConfigured());
   const [dirty, setDirty] = useState(false);
@@ -53,6 +56,7 @@ export function HomepageBuilder() {
       const vSnap = await getDoc(doc(clientDb(), paths.village(village.id)));
       const v = vSnap.data();
       if (v?.layout?.length) setLayout(mergeLayout(v.layout));
+      if (v?.status) setStatus(v.status);
       const t = await getThemeOnce(village.id);
       if (t) {
         setDesign({
@@ -172,7 +176,7 @@ export function HomepageBuilder() {
             ) : tab === "sections" ? (
               <SectionsTab layout={layout} onChange={patchLayout} />
             ) : (
-              <DesignTab villageId={village.id} value={design} onChange={patchDesign} />
+              <DesignTab villageId={village.id} value={design} onChange={patchDesign} aiLocked={aiLocked} />
             )}
           </Panel>
         </div>

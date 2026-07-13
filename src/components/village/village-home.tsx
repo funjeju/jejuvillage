@@ -242,28 +242,7 @@ function StoryEditModal({
 function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: boolean }) {
   const { village, theme } = bundle;
   const heroUrl = theme?.heroUrl;
-  const [bannerBusy, setBannerBusy] = useState(false);
-  const [bannerErr, setBannerErr] = useState<string | null>(null);
   const subtitle = village.oneLiner ? cleanOneLiner(village.oneLiner) : "";
-
-  /** 사무장 원클릭: 마을 성격+마스코트 반영 배너 생성 → heroUrl 반영 후 새로고침 */
-  async function generateBanner() {
-    setBannerErr(null);
-    setBannerBusy(true);
-    try {
-      const res = await fetch("/api/admin/generate-banner", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ villageId: village.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "배너 생성 실패");
-      window.location.reload();
-    } catch (e) {
-      setBannerErr((e as Error).message);
-      setBannerBusy(false);
-    }
-  }
 
   const content = (
     <section className="relative overflow-hidden">
@@ -311,20 +290,7 @@ function HeroSection({ bundle, isManager }: { bundle: VillageBundle; isManager: 
                 <BarChart3 size={16} /> 관광 리포트 보기
               </Link>
             )}
-            {isManager && (
-              <button
-                onClick={generateBanner}
-                disabled={bannerBusy}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-card)] hover:opacity-90 disabled:opacity-60"
-              >
-                {bannerBusy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                {bannerBusy ? "배너 생성 중… (약 30초)" : heroUrl ? "배너 다시 생성" : "AI 배너 생성"}
-              </button>
-            )}
           </div>
-          {bannerErr && (
-            <p className="mt-2 text-sm font-semibold text-white bg-black/40 rounded-full px-3 py-1 w-fit">{bannerErr}</p>
-          )}
         </Container>
       </div>
     </section>

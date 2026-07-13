@@ -6,7 +6,6 @@ import {
   Globe,
   Eye,
   Rocket,
-  EyeOff,
   Copy,
   Check,
   Loader2,
@@ -16,7 +15,7 @@ import { useAdmin } from "@/lib/admin/admin-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
-import { listenVillage, updateVillageStatus } from "@/lib/repo/client";
+import { listenVillage } from "@/lib/repo/client";
 
 /**
  * "내 홈페이지" 패널.
@@ -26,22 +25,32 @@ import { listenVillage, updateVillageStatus } from "@/lib/repo/client";
 export function HomepagePanel() {
   const { village } = useAdmin();
   const [status, setStatus] = useState<"draft" | "published" | null>(null);
+  const [requested, setRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
-    return listenVillage(village.id, (d) => setStatus(d?.status ?? "draft"));
+    return listenVillage(village.id, (d) => {
+      setStatus(d?.status ?? "draft");
+      setRequested(Boolean(d?.publishRequestedAt));
+    });
   }, [village.id]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const url = `${origin}/v/${village.slug}`;
   const isPublished = status === "published";
 
-  async function togglePublish() {
+  // 게시(승인)는 슈퍼관리자만 가능 → 사무장은 '게시 요청'만 한다
+  async function requestPublish() {
     setBusy(true);
     try {
-      await updateVillageStatus(village.id, isPublished ? "draft" : "published");
+      await fetch("/api/admin/publish-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villageId: village.id }),
+      });
+      setRequested(true);
     } finally {
       setBusy(false);
     }
@@ -65,13 +74,15 @@ export function HomepagePanel() {
                 <Badge tone="neutral">확인 중…</Badge>
               ) : isPublished ? (
                 <Badge tone="green">🟢 게시중 (누구나 볼 수 있어요)</Badge>
+              ) : requested ? (
+                <Badge tone="accent">승인 대기중</Badge>
               ) : (
                 <Badge tone="neutral">준비중 (아직 비공개)</Badge>
               )}
             </div>
             <p className="mt-1 text-sm text-ink-700">
-              마을 정보·테마·소식·상품을 채우면 홈페이지가 자동으로 만들어져요.
-              완성되면 <b>게시</b>해서 공개하세요.
+              마을 정보·테마·소식·상품을 채운 뒤 <b>게시 요청</b>을 보내면, 슈퍼관리자 승인 후
+              홈페이지가 공개돼요. 승인되면 배너·마스코트 <b>AI 재생성</b>도 열려요.
             </p>
           </div>
         </div>
@@ -103,16 +114,20 @@ export function HomepagePanel() {
             <Eye size={18} /> 미리보기
           </Link>
 
-          <Button onClick={togglePublish} disabled={busy || status === null} variant={isPublished ? "outline" : "accent"} size="md">
-            {busy ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : isPublished ? (
-              <EyeOff size={18} />
-            ) : (
-              <Rocket size={18} />
-            )}
-            {isPublished ? "비공개로 전환" : "홈페이지 게시하기"}
-          </Button>
+          {isPublished ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2.5 text-sm font-semibold text-green-800">
+              <Check size={16} /> 게시중
+            </span>
+          ) : requested ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--accent)]">
+              <Loader2 size={16} className="animate-spin" /> 슈퍼관리자 승인 대기중
+            </span>
+          ) : (
+            <Button onClick={requestPublish} disabled={busy || status === null} variant="accent" size="md">
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
+              게시 요청하기
+            </Button>
+          )}
 
           {isPublished && (
             <a

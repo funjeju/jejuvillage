@@ -46,6 +46,7 @@ export type BookingStatus = "REQUESTED" | "CONFIRMED" | "REJECTED" | "CANCELED";
 export type FeedVisibility = "village_only" | "global";
 export type MediaType = "image" | "audio";
 export type ThemePreset = "warm" | "clean" | "trendy";
+export type BannerStyle = "anime" | "watercolor";
 
 /** 마을 */
 export interface Village {
@@ -181,6 +182,8 @@ export interface VillageTheme {
   colorAccent: string;
   colorBg: string;
   fontKey: string;
+  /** 배너 그림풍: anime(지브리 혼합 애니메이션, 기본) | watercolor(수채 그림책) */
+  bannerStyle?: BannerStyle | null;
   heroUrl?: string | null;
   /** 지금까지 생성/업로드한 배너 후보들 (최신순). 어드민에서 골라 heroUrl 로 전환 */
   heroHistory?: string[] | null;

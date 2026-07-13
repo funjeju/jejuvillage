@@ -57,11 +57,22 @@ async function buildSceneBrief(
  * - 와이드(1536x1024) 1장 생성 → Storage 저장 → heroUrl 로 반영
  */
 
+// 배너 그림풍 프리셋. 기본은 지브리 혼합 애니메이션풍.
+const STYLE_PROMPT: Record<string, string> = {
+  anime:
+    "Style: Studio Ghibli-inspired anime background art blended ~50-60% with clean modern anime film aesthetic — soft cel shading, hand-painted anime scenery, lush and warm, gentle cinematic lighting, painterly skies and foliage.",
+  watercolor:
+    "Style: soft warm watercolor storybook illustration, hand-painted picture-book aesthetic, cozy and inviting, gentle natural light.",
+};
+
 export async function POST(req: NextRequest) {
-  const { villageId, refImageBase64, refMediaType } = (await req.json().catch(() => ({}))) as {
+  const { villageId, refImageBase64, refMediaType, style } = (await req
+    .json()
+    .catch(() => ({}))) as {
     villageId?: string;
-    refImageBase64?: string; // 실제 사진(참조) → 그대로 수채화로 리페인트
+    refImageBase64?: string; // 실제 사진(참조) → 그대로 리페인트
     refMediaType?: string;
+    style?: string; // "anime" | "watercolor"
   };
 
   const user = await getSessionUser();
@@ -86,9 +97,25 @@ export async function POST(req: NextRequest) {
   const v = vSnap.data();
   if (!v) return NextResponse.json({ error: "마을을 찾을 수 없어요." }, { status: 404 });
 
+  // AI 이미지 재생성 게이트: 슈퍼관리자거나 게시 승인(published)된 마을만.
+  // 단, 아직 배너가 없는 최초 생성(온보딩)은 허용.
+  const themeSnapEarly = await db.doc(paths.themeDoc(villageId)).get();
+  const hasBanner = Boolean(themeSnapEarly.data()?.heroUrl);
+  const isSuper = user?.role === "platform_admin";
+  const approved = v.status === "published";
+  if (!isSuper && !approved && hasBanner) {
+    return NextResponse.json(
+      { error: "게시 승인 후 배너를 다시 생성할 수 있어요. 대시보드에서 게시 요청을 해주세요.", locked: true },
+      { status: 403 }
+    );
+  }
+
   const name: string = v.name ?? "";
   const oneLiner: string = v.oneLiner ?? "";
   const region: string = v.region ?? "";
+  // 스타일: 요청값 → 테마 저장값 → 기본(anime)
+  const styleKey = style || (themeSnapEarly.data()?.bannerStyle as string) || "anime";
+  const stylePrompt = STYLE_PROMPT[styleKey] ?? STYLE_PROMPT.anime;
   const storyText = storiesSnap.docs
     .map((d) => d.data()?.body ?? "")
     .join(" ")
@@ -102,11 +129,11 @@ export async function POST(req: NextRequest) {
   let brief: string | null = null;
   let prompt: string;
   if (useRef) {
-    // 실제 사진을 '그대로' 수채화 배너로 리페인트 — 지형/건물/배치를 지어내지 않음
-    prompt = `Repaint the attached REAL photograph as a soft warm watercolor storybook illustration for a village tourism homepage banner.
+    // 실제 사진을 '그대로' 배너로 리페인트 — 지형/건물/배치를 지어내지 않음
+    prompt = `Repaint the attached REAL photograph as an illustrated village tourism homepage banner.
 Keep the SAME real scene faithfully: the same terrain, buildings, roads, fields, trees and overall layout as in the photo. Do NOT invent or add anything that is not in the photo — no extra sea, no extra mountains, no new buildings.
-Style: hand-painted watercolor picture-book aesthetic, cozy and inviting, gentle natural light. Wide panoramic banner composition.
-Absolutely NO cartoon mascot characters, NO people as the focus, NO text, no words, no letters, no logos.`;
+${stylePrompt}
+Wide panoramic banner composition. Absolutely NO cartoon mascot characters, NO people as the focus, NO text, no words, no letters, no logos.`;
   } else {
     brief = await buildSceneBrief(apiKey, { name, region, oneLiner, storyText });
     const grounded = brief || `Concept: ${oneLiner}. Atmosphere hints: ${storyText}.`;
@@ -114,7 +141,7 @@ Absolutely NO cartoon mascot characters, NO people as the focus, NO text, no wor
 Village: "${name}" in ${region}, Jeju Island, South Korea.
 Scene (grounded in this real village): ${grounded}
 ${JEJU_ANCHOR}
-Style: soft warm watercolor storybook illustration, hand-painted picture-book aesthetic, cozy and inviting, gentle natural light.
+${stylePrompt}
 Composition: keep the focal scenery within the CENTER 60% safe zone so the image crops well on both wide desktop and tall mobile screens; let the left and right edges be ambient scenery (sky, fields, sea) that is safe to crop. Leave the lower-left area visually calm (dark-friendly) for overlay text, and the right side uncluttered for a character overlay.
 Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no words, no letters, no logos.`;
   }
@@ -177,7 +204,7 @@ Absolutely NO cartoon mascot characters, NO animals in costume, NO text, no word
 
     await db
       .doc(paths.themeDoc(villageId))
-      .set({ villageId, heroUrl: url, heroHistory: history }, { merge: true });
+      .set({ villageId, heroUrl: url, heroHistory: history, bannerStyle: styleKey }, { merge: true });
 
     await db
       .collection(paths.mediaAssets)

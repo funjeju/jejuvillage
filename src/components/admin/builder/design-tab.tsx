@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Music, ImagePlus, Sparkles, Wand2, ScanFace, ImageIcon } from "lucide-react";
+import { Loader2, Music, ImagePlus, Sparkles, Wand2, ScanFace, ImageIcon, Lock } from "lucide-react";
 import { adminField, adminLabel } from "@/components/admin/ui";
 import {
   uploadImageTo,
@@ -40,10 +40,13 @@ export function DesignTab({
   villageId,
   value,
   onChange,
+  aiLocked = false,
 }: {
   villageId: string;
   value: DesignState;
   onChange: (patch: Partial<DesignState>) => void;
+  /** true면 AI 이미지 생성 잠금 (게시 승인 전) */
+  aiLocked?: boolean;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,7 @@ export function DesignTab({
   /** 마스코트 캐릭터 시트 → Vision 분석 → 단독 캐릭터 AI 생성(실패 시 시트 크롭) → 자동 채움 */
   async function pickSheet(file?: File) {
     if (!file) return;
+    if (aiLocked) return setError("게시 승인 후 마스코트를 다시 만들 수 있어요.");
     setError(null);
     setSheetMsg(null);
     setSheetBusy(true);
@@ -128,6 +132,7 @@ export function DesignTab({
    * - 없으면: 마을 사실을 근거로 자동 생성
    */
   async function generateBanner(refFile?: File) {
+    if (aiLocked) return setError("게시 승인 후 배너를 다시 만들 수 있어요.");
     setError(null);
     setBannerBusy(true);
     try {
@@ -161,6 +166,7 @@ export function DesignTab({
   }
 
   async function generate(kind: "hero" | "mascot") {
+    if (aiLocked) return setError("게시 승인 후 AI 이미지를 만들 수 있어요.");
     setError(null);
     if (aiPrompt.trim().length < 4) {
       setError("생성할 이미지를 한 줄로 설명해 주세요.");
@@ -224,8 +230,17 @@ export function DesignTab({
 
   return (
     <div className="space-y-6">
+      {aiLocked && (
+        <div className="flex items-start gap-2 rounded-2xl border border-brown-300/50 bg-cream-100 p-3 text-sm text-brown-600">
+          <Lock size={16} className="mt-0.5 shrink-0" />
+          <span>
+            AI 이미지(배너·마스코트) <b>재생성</b>은 <b>슈퍼관리자 게시 승인 후</b>에 열려요. 대시보드에서
+            <b> 게시 요청</b>을 먼저 해주세요. (색상·업로드·음악은 지금도 바꿀 수 있어요)
+          </span>
+        </div>
+      )}
       {/* AI 이미지 생성 (마을 고유 배경·마스코트) */}
-      <div className="rounded-2xl bg-gradient-to-br from-green-100 to-sky-100 p-4">
+      <div className={`rounded-2xl bg-gradient-to-br from-green-100 to-sky-100 p-4 ${aiLocked ? "opacity-60" : ""}`}>
         <p className="flex items-center gap-2 font-display text-lg">
           <Sparkles size={18} className="text-green-700" /> AI로 마을 고유 이미지 만들기
         </p>
@@ -244,7 +259,7 @@ export function DesignTab({
           <button
             type="button"
             onClick={() => generate("hero")}
-            disabled={aiBusy !== null}
+            disabled={aiBusy !== null || aiLocked}
             className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
           >
             {aiBusy === "hero" ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
@@ -253,7 +268,7 @@ export function DesignTab({
           <button
             type="button"
             onClick={() => generate("mascot")}
-            disabled={aiBusy !== null}
+            disabled={aiBusy !== null || aiLocked}
             className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-green-800 border border-green-700 hover:bg-green-100 disabled:opacity-50"
           >
             {aiBusy === "mascot" ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
@@ -278,7 +293,7 @@ export function DesignTab({
           <button
             type="button"
             onClick={() => sheetRef.current?.click()}
-            disabled={sheetBusy}
+            disabled={sheetBusy || aiLocked}
             className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
           >
             {sheetBusy ? <Loader2 size={15} className="animate-spin" /> : <ScanFace size={15} />}
@@ -331,7 +346,7 @@ export function DesignTab({
               <button
                 type="button"
                 onClick={() => generateBanner()}
-                disabled={bannerBusy}
+                disabled={bannerBusy || aiLocked}
                 className="inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
               >
                 {bannerBusy ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
@@ -340,7 +355,7 @@ export function DesignTab({
               <button
                 type="button"
                 onClick={() => photoRef.current?.click()}
-                disabled={bannerBusy}
+                disabled={bannerBusy || aiLocked}
                 className="inline-flex items-center gap-1.5 rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100 disabled:opacity-50"
               >
                 <ScanFace size={15} /> 실제 사진으로 배너 만들기

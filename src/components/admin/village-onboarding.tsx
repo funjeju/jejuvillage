@@ -63,6 +63,7 @@ function Wizard({ userName }: { userName: string }) {
   const [mascotPreview, setMascotPreview] = useState<string | null>(null);
   const [mascotName, setMascotName] = useState("");
   const [bgmUrl, setBgmUrl] = useState<string | null>(null);
+  const [bannerStyle, setBannerStyle] = useState<"anime" | "watercolor">("anime");
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfMsg, setPdfMsg] = useState<string | null>(null);
@@ -215,7 +216,6 @@ function Wizard({ userName }: { userName: string }) {
       }
 
       // ② 캐릭터 시트 → 마스코트 자동 추출: 분석 후 단독 캐릭터 생성(실패 시 시트 크롭)
-      let mascotVisual: string | undefined;
       if (mascotFile) {
         setGenMsg("캐릭터 시트에서 마스코트 만드는 중…");
         try {
@@ -277,7 +277,7 @@ function Wizard({ userName }: { userName: string }) {
         await fetch("/api/admin/generate-banner", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ villageId: slug, mascotVisual }),
+          body: JSON.stringify({ villageId: slug, style: bannerStyle }),
         });
       } catch {
         /* 배너 실패해도 생성은 계속 — 편집 화면에서 재시도 가능 */
@@ -406,8 +406,33 @@ function Wizard({ userName }: { userName: string }) {
           {pdfMsg && <p className="mt-2 text-xs font-semibold text-green-700">{pdfMsg}</p>}
         </StepCard>
 
+        {/* 배너 그림풍 선택 */}
+        <StepCard n={3} title="배너 그림풍 고르기">
+          <p className="mb-3 text-sm text-ink-600">대표 배너를 어떤 그림풍으로 그릴지 골라요.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: "anime" as const, label: "애니메이션풍", desc: "지브리 감성 애니메이션 (추천)" },
+              { key: "watercolor" as const, label: "수채화풍", desc: "부드러운 그림책 수채화" },
+            ].map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setBannerStyle(o.key)}
+                className={`rounded-2xl border-2 p-3 text-left transition ${
+                  bannerStyle === o.key
+                    ? "border-green-700 bg-green-50"
+                    : "border-line bg-white hover:border-green-400"
+                }`}
+              >
+                <span className="block font-display text-base">{o.label}</span>
+                <span className="mt-0.5 block text-xs text-ink-500">{o.desc}</span>
+              </button>
+            ))}
+          </div>
+        </StepCard>
+
         {/* ③ 캐릭터 시트 → 생성 시 AI가 마스코트 추출 */}
-        <StepCard n={3} title="마을 캐릭터(마스코트)">
+        <StepCard n={4} title="마을 캐릭터(마스코트)">
           <div className="flex items-start gap-4">
             <button
               type="button"
@@ -434,7 +459,7 @@ function Wizard({ userName }: { userName: string }) {
         </StepCard>
 
         {/* ④ 배경음악 */}
-        <StepCard n={4} title="배경음악 (선택)">
+        <StepCard n={5} title="배경음악 (선택)">
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
