@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sprout, Loader2, AlertCircle } from "lucide-react";
@@ -12,10 +12,18 @@ const field =
 
 function LoginInner() {
   const router = useRouter();
-  const { signIn, signInWithGoogle, configured } = useAuth();
+  const { user, loading, signIn, signInWithGoogle, configured } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 이미 로그인된 상태면 로그인 폼 대신 관리 화면으로 보낸다
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/admin");
+      router.refresh();
+    }
+  }, [loading, user, router]);
 
   async function goAdmin() {
     router.push("/admin");
@@ -46,6 +54,20 @@ function LoginInner() {
       setError(mapAuthError((err as Error).message));
       setGoogleBusy(false);
     }
+  }
+
+  // 인증 상태 확인 중이거나 이미 로그인됨 → 폼 대신 이동 안내 (폼 깜빡임 방지)
+  if (loading || user) {
+    return (
+      <div className="min-h-dvh grid place-items-center bg-gradient-to-b from-sky-100 to-green-100 p-4">
+        <div className="flex flex-col items-center gap-3 text-ink-700">
+          <Loader2 size={28} className="animate-spin text-green-700" />
+          <p className="text-sm font-semibold">
+            {user ? "이미 로그인되어 있어요. 관리 화면으로 이동해요…" : "로그인 상태 확인 중…"}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
