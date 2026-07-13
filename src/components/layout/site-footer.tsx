@@ -53,7 +53,7 @@ export function SiteFooter() {
           </div>
         </div>
         <p className="mt-10 border-t border-white/15 pt-6 text-xs text-green-100/60">
-          © {new Date().getFullYear()} 제주마을 웹빌더 · 조수리 외 제주
+          © {new Date().getFullYear()} 제주마을 웹빌더 · 제주
           농어촌체험휴양마을과 함께합니다.
         </p>
       </Container>

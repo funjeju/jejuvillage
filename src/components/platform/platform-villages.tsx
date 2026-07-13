@@ -13,6 +13,7 @@ import {
   Check,
   MapPin,
   X,
+  Trash2,
 } from "lucide-react";
 import { PageTitle, Panel, StatCard, adminField, adminLabel } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ function VillageRow({
   onInvite: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function toggle() {
     setBusy(true);
@@ -100,6 +102,24 @@ function VillageRow({
     });
     setBusy(false);
     onChanged();
+  }
+
+  async function remove() {
+    const sure = window.confirm(
+      `"${village.name}" 마을을 완전히 삭제할까요?\n홈페이지·소식·상품·예약이 모두 지워지고 되돌릴 수 없어요.`
+    );
+    if (!sure) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/platform/villages/${village.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      onChanged();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -141,6 +161,14 @@ function VillageRow({
         >
           <ExternalLink size={15} /> 홈
         </Link>
+        <button
+          onClick={remove}
+          disabled={deleting}
+          className="inline-flex items-center gap-1 rounded-full border-2 border-[var(--accent)]/60 px-4 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
+        >
+          {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+          삭제
+        </button>
       </div>
     </Panel>
   );
