@@ -12,18 +12,20 @@ const field =
 
 function LoginInner() {
   const router = useRouter();
-  const { user, loading, signIn, signInWithGoogle, configured } = useAuth();
+  const { user, loading, sessionSynced, signIn, signInWithGoogle, configured } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 이미 로그인된 상태면 로그인 폼 대신 관리 화면으로 보낸다
+  // 세션 쿠키가 실제로 동기화된 경우에만 관리 화면으로 보낸다.
+  // (동기화 전에 보내면 /admin 가드가 다시 /login 으로 되던져 무한 루프)
+  const ready = !loading && user && sessionSynced;
   useEffect(() => {
-    if (!loading && user) {
+    if (ready) {
       router.replace("/admin");
       router.refresh();
     }
-  }, [loading, user, router]);
+  }, [ready, router]);
 
   async function goAdmin() {
     router.push("/admin");
@@ -56,14 +58,15 @@ function LoginInner() {
     }
   }
 
-  // 인증 상태 확인 중이거나 이미 로그인됨 → 폼 대신 이동 안내 (폼 깜빡임 방지)
-  if (loading || user) {
+  // 인증 상태 확인 중이거나, 로그인+세션동기화 완료로 이동 대기 중 → 로더 표시(폼 깜빡임 방지).
+  // user 는 있는데 세션 동기화가 안 된 경우엔 로그인 폼을 보여줘 재로그인으로 복구(루프 방지).
+  if (loading || ready) {
     return (
       <div className="min-h-dvh grid place-items-center bg-gradient-to-b from-sky-100 to-green-100 p-4">
         <div className="flex flex-col items-center gap-3 text-ink-700">
           <Loader2 size={28} className="animate-spin text-green-700" />
           <p className="text-sm font-semibold">
-            {user ? "이미 로그인되어 있어요. 관리 화면으로 이동해요…" : "로그인 상태 확인 중…"}
+            {ready ? "이미 로그인되어 있어요. 관리 화면으로 이동해요…" : "로그인 상태 확인 중…"}
           </p>
         </div>
       </div>

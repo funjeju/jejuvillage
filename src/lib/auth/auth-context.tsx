@@ -24,6 +24,8 @@ interface AuthState {
   role: Role;
   managedVillages: string[];
   loading: boolean;
+  /** 서버 httpOnly 세션 쿠키가 클라이언트 로그인과 동기화됐는지 (SSR 가드 통과 가능 여부) */
+  sessionSynced: boolean;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [managedVillages, setManagedVillages] = useState<string[]>([]);
   // 미설정 시엔 대기할 필요가 없으므로 loading 초기값을 configured 로 둔다.
   const [loading, setLoading] = useState(configured);
+  const [sessionSynced, setSessionSynced] = useState(false);
 
   useEffect(() => {
     if (!configured) return;
@@ -54,9 +57,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await u.getIdTokenResult();
         setRole((token.claims.role as Role) ?? "guest");
         setManagedVillages((token.claims.managedVillages as string[]) ?? []);
+        // 서버 httpOnly 세션 쿠키를 클라이언트 로그인과 동기화(만료/부재 시 재발급) →
+        // SSR 가드(/admin)가 /login 으로 되던지는 무한 리다이렉트 방지
+        try {
+          await createSession(await u.getIdToken());
+          setSessionSynced(true);
+        } catch {
+          setSessionSynced(false);
+        }
       } else {
         setRole("guest");
         setManagedVillages([]);
+        setSessionSynced(false);
       }
       setLoading(false);
     });
@@ -78,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(clientAuth(), email, password);
     await createSession(await cred.user.getIdToken());
+    setSessionSynced(true);
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
@@ -85,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     provider.setCustomParameters({ prompt: "select_account" });
     const cred = await signInWithPopup(clientAuth(), provider);
     await createSession(await cred.user.getIdToken());
+    setSessionSynced(true);
   }, []);
 
   /** 서버에서 커스텀 클레임(권한/관리마을)이 바뀐 뒤 토큰·세션을 갱신 */
@@ -93,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!u) return;
     const idToken = await u.getIdToken(true); // 강제 갱신 → 새 클레임 반영
     await createSession(idToken);
+    setSessionSynced(true);
     const token = await u.getIdTokenResult();
     setRole((token.claims.role as Role) ?? "guest");
     setManagedVillages((token.claims.managedVillages as string[]) ?? []);
@@ -100,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" });
+    setSessionSynced(false);
     if (configured) await fbSignOut(clientAuth());
   }, [configured]);
 
@@ -110,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
         managedVillages,
         loading,
+        sessionSynced,
         configured,
         signIn,
         signInWithGoogle,

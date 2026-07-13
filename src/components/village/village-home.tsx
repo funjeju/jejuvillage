@@ -66,7 +66,7 @@ function cleanOneLiner(text: string): string {
 }
 
 /** 스토리 카드용: 마크다운·기획 용어 제거 후 앞 2~3문장(최대 180자)만 요약 노출 */
-function summarize(text: string, maxLen = 180): string {
+function summarize(text: string, maxLen = 140): string {
   const clean = dropJargonLines(stripMd(text)).replace(/\n+/g, " ").trim();
   if (clean.length <= maxLen) return clean;
   const cut = clean.slice(0, maxLen);
@@ -404,17 +404,17 @@ function StorySection({ bundle, isManager }: { bundle: VillageBundle; isManager:
                 <span className="text-xs font-bold text-[var(--accent)]">
                   {STORY_LABEL[s.sectionKey] || "이야기"}
                 </span>
-                <h3 className="mt-0.5 font-display text-lg text-ink-900 line-clamp-1">
+                <h3 className="mt-0.5 font-display text-lg text-ink-900 line-clamp-2">
                   {s.title || STORY_LABEL[s.sectionKey] || "이야기"}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-700 line-clamp-5">
+                <p className="mt-2 text-sm leading-relaxed text-ink-700">
                   {summarize(s.body)}
                 </p>
               </Postit>
               {isManager && (
                 <button
                   onClick={() => setEditing(s)}
-                  className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-ink-700 shadow-md opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-green-100"
+                  className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-[var(--accent)] px-2.5 py-1 text-xs font-semibold text-white shadow-md hover:opacity-90"
                 >
                   <Pencil size={11} /> 편집
                 </button>
