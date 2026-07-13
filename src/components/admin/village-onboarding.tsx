@@ -234,7 +234,6 @@ function Wizard({ userName }: { userName: string }) {
               cropBox: { x: number; y: number; w: number; h: number };
               visualPrompt: string;
             };
-            mascotVisual = a.visualPrompt || undefined;
 
             let url: string | null = null;
             try {

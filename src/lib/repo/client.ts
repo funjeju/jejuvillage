@@ -272,11 +272,23 @@ export async function updateVillageStatus(
 /** 마을 문서 실시간 구독 (홈페이지 상태 패널용) */
 export function listenVillage(
   villageId: string,
-  cb: (data: { status: "draft" | "published"; name: string } | null) => void
+  cb: (
+    data:
+      | { status: "draft" | "published"; name: string; publishRequestedAt: number | null }
+      | null
+  ) => void
 ): Unsubscribe {
   return onSnapshot(doc(clientDb(), paths.village(villageId)), (snap) => {
     const d = snap.data();
-    cb(d ? { status: d.status ?? "draft", name: d.name ?? "" } : null);
+    cb(
+      d
+        ? {
+            status: d.status ?? "draft",
+            name: d.name ?? "",
+            publishRequestedAt: d.publishRequestedAt ?? null,
+          }
+        : null
+    );
   });
 }
 
