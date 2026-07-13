@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import sharp from "sharp";
+import { PNG } from "pngjs";
 import { getStorage } from "firebase-admin/storage";
 import { adminDb } from "@/lib/firebase/admin";
 import { getSessionUser, canManageVillage } from "@/lib/auth/session";
@@ -9,12 +9,11 @@ import { paths } from "@/lib/firebase/paths";
  * 마젠타(#FF00FF 근처) 단색 배경을 투명으로 키잉.
  * gpt-image-2가 background:transparent 를 지원하지 않아(API 확인),
  * 마젠타 배경으로 생성한 뒤 크로마키로 투명 PNG를 만든다.
+ * 순수 JS(pngjs)로 처리 → 서버리스(Vercel)에서 네이티브 바이너리 의존 없음.
  */
-async function chromaKeyMagenta(png: Buffer): Promise<Buffer> {
-  const { data, info } = await sharp(png)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+function chromaKeyMagenta(png: Buffer): Buffer {
+  const img = PNG.sync.read(png); // RGBA
+  const data = img.data;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i],
       g = data[i + 1],
@@ -31,9 +30,7 @@ async function chromaKeyMagenta(png: Buffer): Promise<Buffer> {
       data[i + 2] = b - Math.round(spill * 0.6);
     }
   }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
-    .png()
-    .toBuffer();
+  return PNG.sync.write(img);
 }
 
 const MAGENTA_BG =
@@ -158,7 +155,7 @@ export async function POST(req: NextRequest) {
     const objectPath = `villages/${villageId}/generated/${k}-${id}.png`;
     let buffer: Buffer = Buffer.from(b64, "base64");
     if (k === "mascot") {
-      buffer = await chromaKeyMagenta(buffer);
+      buffer = chromaKeyMagenta(buffer);
     }
     await getStorage()
       .bucket(bucketName)
