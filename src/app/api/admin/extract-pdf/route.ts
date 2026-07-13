@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
+import { extractText, getDocumentProxy } from "unpdf";
 import { getSessionUser } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -24,9 +24,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "PDF는 최대 15MB까지 가능해요." }, { status: 413 });
     }
 
-    const parser = new PDFParse({ data: buf });
-    const result = await parser.getText();
-    const text = (result.text ?? "")
+    // 서버리스(Vercel) 안전한 pdfjs 래퍼 unpdf 사용
+    const pdf = await getDocumentProxy(new Uint8Array(buf));
+    const { text: raw } = await extractText(pdf, { mergePages: true });
+    const text = (typeof raw === "string" ? raw : (raw as string[]).join("\n"))
       .replace(/^\s*--\s*\d+\s*of\s*\d+\s*--\s*$/gim, "") // 페이지 구분 마커 제거
       .replace(/\s+\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")

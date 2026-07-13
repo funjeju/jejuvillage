@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sprout,
@@ -11,6 +11,8 @@ import {
   ImagePlus,
   Wand2,
   Check,
+  MapPin,
+  Search,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context";
 import { adminField } from "@/components/admin/ui";
@@ -33,6 +35,15 @@ export function VillageOnboarding({ userName }: { userName: string }) {
 
 const AUDIO_MAX_MB = 8;
 
+interface GeoResult {
+  name: string;
+  region: string;
+  slug: string;
+  lat: number;
+  lng: number;
+  label: string;
+}
+
 function Wizard({ userName }: { userName: string }) {
   const router = useRouter();
   const { refreshSession, signOut } = useAuth();
@@ -41,6 +52,12 @@ function Wizard({ userName }: { userName: string }) {
   const [region, setRegion] = useState("");
   const [slug, setSlug] = useState("");
   const [desc, setDesc] = useState("");
+  // 마을 이름 자동완성(구글맵식 펼침 목록) — 선택 시 지역·영문주소·좌표 자동 채움
+  const [suggests, setSuggests] = useState<GeoResult[]>([]);
+  const [showSug, setShowSug] = useState(false);
+  const [sugBusy, setSugBusy] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const skipSearchRef = useRef(false);
   // 캐릭터 시트는 파일로 들고 있다가 생성 시 AI 파이프라인(분석→단독 캐릭터 생성)에 태운다
   const [mascotFile, setMascotFile] = useState<File | null>(null);
   const [mascotPreview, setMascotPreview] = useState<string | null>(null);
@@ -48,6 +65,7 @@ function Wizard({ userName }: { userName: string }) {
   const [bgmUrl, setBgmUrl] = useState<string | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMsg, setPdfMsg] = useState<string | null>(null);
   const [bgmBusy, setBgmBusy] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,9 +76,48 @@ function Wizard({ userName }: { userName: string }) {
 
   const slugReady = isValidSlug(slug);
 
+  // 이름 입력 → 디바운스 후 자동완성 검색 (선택으로 바뀐 경우는 건너뜀)
+  useEffect(() => {
+    if (skipSearchRef.current) {
+      skipSearchRef.current = false;
+      return;
+    }
+    const q = name.trim();
+    const t = setTimeout(async () => {
+      if (q.length < 2) {
+        setSuggests([]);
+        setShowSug(false);
+        return;
+      }
+      setSugBusy(true);
+      try {
+        const r = await fetch(`/api/geo/search?q=${encodeURIComponent(q)}`);
+        const d = await r.json();
+        setSuggests(d.results ?? []);
+        setShowSug(true);
+      } catch {
+        /* 검색 실패는 무시 (직접 입력 가능) */
+      } finally {
+        setSugBusy(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [name]);
+
+  function chooseSuggest(s: GeoResult) {
+    skipSearchRef.current = true; // 이름 세팅으로 인한 재검색 방지
+    setName(s.name);
+    setRegion(s.region);
+    if (s.slug) setSlug(s.slug);
+    setCoords({ lat: s.lat, lng: s.lng });
+    setSuggests([]);
+    setShowSug(false);
+  }
+
   async function onPdf(file?: File) {
     if (!file) return;
     setError(null);
+    setPdfMsg(null);
     setPdfBusy(true);
     try {
       const res = await fetch("/api/admin/extract-pdf", {
@@ -68,9 +125,12 @@ function Wizard({ userName }: { userName: string }) {
         headers: { "Content-Type": "application/pdf" },
         body: file,
       });
-      const data = await res.json();
+      // 서버 오류가 HTML(비 JSON)로 오는 경우까지 방어
+      const data = await res.json().catch(() => ({ error: "PDF 서버 처리 중 오류가 났어요." }));
       if (!res.ok) throw new Error(data.error ?? "PDF 읽기 실패");
-      setDesc((prev) => (prev ? prev + "\n\n" : "") + data.text);
+      const added = String(data.text ?? "");
+      setDesc((prev) => (prev ? prev + "\n\n" : "") + added);
+      setPdfMsg(`✓ ${file.name}에서 ${added.length.toLocaleString()}자를 불러와 아래 설명에 추가했어요.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -109,12 +169,13 @@ function Wizard({ userName }: { userName: string }) {
 
   async function generate() {
     setError(null);
-    // 좌표는 보내지 않는다 → 서버가 마을 이름·지역으로 자동 지오코딩
+    // 자동완성에서 마을을 선택했으면 그 좌표를 사용, 아니면 서버가 이름·지역으로 지오코딩
     const parsed = villageCreateSchema.safeParse({
       name,
       region,
       slug,
       oneLiner: "",
+      ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "마을 이름·지역·영문주소를 확인해 주세요.");
@@ -263,7 +324,47 @@ function Wizard({ userName }: { userName: string }) {
         {/* ① 마을 기본 */}
         <StepCard n={1} title="마을 기본 정보">
           <div className="grid gap-3 sm:grid-cols-2">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="마을 이름 (예: 조수리)" className={adminField} />
+            {/* 마을 이름 자동완성 */}
+            <div className="relative">
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
+                <input
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setCoords(null); // 직접 수정하면 선택 좌표 해제
+                  }}
+                  onFocus={() => suggests.length && setShowSug(true)}
+                  onBlur={() => setTimeout(() => setShowSug(false), 150)}
+                  placeholder="마을 이름 검색 (예: 조수리)"
+                  className={`${adminField} pl-9`}
+                  autoComplete="off"
+                />
+                {sugBusy && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink-500" />}
+              </div>
+              {showSug && suggests.length > 0 && (
+                <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-line bg-white py-1 shadow-[var(--shadow-float)]">
+                  {suggests.map((s, i) => (
+                    <li key={`${s.name}-${i}`}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          chooseSuggest(s);
+                        }}
+                        className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-green-100"
+                      >
+                        <MapPin size={15} className="mt-0.5 shrink-0 text-green-700" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-ink-900">{s.name}</span>
+                          <span className="block truncate text-xs text-ink-500">{s.region} · /v/{s.slug}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="지역 (예: 제주시 한경면)" className={adminField} />
           </div>
           <input
@@ -273,8 +374,9 @@ function Wizard({ userName }: { userName: string }) {
             className={`${adminField} mt-3`}
           />
           <p className="mt-1 text-xs text-ink-500">
-            홈페이지 주소가 돼요: <b>/v/{slug || "영문주소"}</b>
+            마을 이름을 검색해 고르면 <b>지역·영문주소·위치</b>가 자동으로 채워져요. 주소가 돼요: <b>/v/{slug || "영문주소"}</b>
             {slug && !slugReady && <span className="text-[var(--accent)]"> · 영소문자·숫자·하이픈만</span>}
+            {coords && <span className="text-green-700"> · 📍위치 지정됨</span>}
           </p>
         </StepCard>
 
@@ -301,6 +403,7 @@ function Wizard({ userName }: { userName: string }) {
             {pdfBusy ? "PDF 읽는 중…" : "PDF 파일 올리기"}
           </button>
           <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => onPdf(e.target.files?.[0])} />
+          {pdfMsg && <p className="mt-2 text-xs font-semibold text-green-700">{pdfMsg}</p>}
         </StepCard>
 
         {/* ③ 캐릭터 시트 → 생성 시 AI가 마스코트 추출 */}
