@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Search, Newspaper, Compass, Map as MapIcon } from "lucide-react";
+import { Search, Newspaper, Compass, Map as MapIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Mascot } from "@/components/decor/mascot";
@@ -115,19 +115,12 @@ export function HomeClient({
           }
         />
         {posts.length ? (
-          /* 세로 9:16 카드 · 한 번에 2개 · 좌우 스냅 슬라이드 (각 카드는 해당 마을 페이지로 링크) */
-          <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
-            {posts.map((p) => (
-              <LiveFeedCard
-                key={p.id}
-                post={p}
-                active={activeId === p.villageId}
-                onActivate={setActiveId}
-                onDeactivate={() => setActiveId(null)}
-                onClick={setLightbox}
-              />
-            ))}
-          </div>
+          <FeedSlider
+            posts={posts}
+            activeId={activeId}
+            setActiveId={setActiveId}
+            onCardClick={setLightbox}
+          />
         ) : (
           <EmptyHint icon={<Newspaper />} text="아직 올라온 소식이 없어요. 첫 소식을 기다리는 중!" />
         )}
@@ -183,6 +176,84 @@ export function HomeClient({
             router.push(`/v/${lightbox.villageSlug}#feed`);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function FeedSlider({
+  posts,
+  activeId,
+  setActiveId,
+  onCardClick,
+}: {
+  posts: FeedPost[];
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  onCardClick: (post: FeedPost) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const check = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    check();
+    el.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => {
+      el.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, [check, posts.length]);
+
+  function scroll(dir: -1 | 1) {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  }
+
+  return (
+    <div className="group/slider relative">
+      <div
+        ref={ref}
+        className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6"
+      >
+        {posts.map((p) => (
+          <LiveFeedCard
+            key={p.id}
+            post={p}
+            active={activeId === p.villageId}
+            onActivate={setActiveId}
+            onDeactivate={() => setActiveId(null)}
+            onClick={onCardClick}
+          />
+        ))}
+      </div>
+
+      {canLeft && (
+        <button
+          onClick={() => scroll(-1)}
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden sm:grid h-10 w-10 place-items-center rounded-full bg-white/90 shadow-lg text-ink-700 hover:bg-white transition-all opacity-0 group-hover/slider:opacity-100"
+        >
+          <ChevronLeft size={22} />
+        </button>
+      )}
+      {canRight && (
+        <button
+          onClick={() => scroll(1)}
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden sm:grid h-10 w-10 place-items-center rounded-full bg-white/90 shadow-lg text-ink-700 hover:bg-white transition-all opacity-0 group-hover/slider:opacity-100"
+        >
+          <ChevronRight size={22} />
+        </button>
       )}
     </div>
   );
