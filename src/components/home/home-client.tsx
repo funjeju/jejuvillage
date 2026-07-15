@@ -13,6 +13,7 @@ import { ProductCard } from "@/components/product/product-card";
 import { JejuMap } from "@/components/map/jeju-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 import { listenGlobalFeed } from "@/lib/repo/client";
+import { FeedLightbox } from "@/components/feed/feed-lightbox";
 import type { VillageSummary, FeedPost, Product } from "@/lib/types";
 
 export function HomeClient({
@@ -27,6 +28,7 @@ export function HomeClient({
   const router = useRouter();
   const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<FeedPost | null>(null);
   const [q, setQ] = useState("");
 
   // 준실시간 피드 갱신 (FR-FEED-02) — Firebase 설정 시에만 리스너 부착
@@ -122,6 +124,7 @@ export function HomeClient({
                 active={activeId === p.villageId}
                 onActivate={setActiveId}
                 onDeactivate={() => setActiveId(null)}
+                onClick={setLightbox}
               />
             ))}
           </div>
@@ -171,6 +174,16 @@ export function HomeClient({
       </section>
 
       <HomeCtaBar />
+      {lightbox && (
+        <FeedLightbox
+          post={lightbox}
+          onClose={() => setLightbox(null)}
+          onGoVillage={() => {
+            setLightbox(null);
+            router.push(`/v/${lightbox.villageSlug}#feed`);
+          }}
+        />
+      )}
     </div>
   );
 }

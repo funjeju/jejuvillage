@@ -78,59 +78,81 @@ export function LiveFeedCard({
   onActivate,
   onDeactivate,
   active,
+  onClick,
 }: {
   post: FeedPost;
   onActivate?: (villageId: string) => void;
   onDeactivate?: () => void;
   active?: boolean;
+  onClick?: (post: FeedPost) => void;
 }) {
   const media = post.media[0];
+  const shared = cn(
+    "group relative block shrink-0 snap-start overflow-hidden rounded-[var(--radius-blob)] border shadow-[var(--shadow-card)] transition-all",
+    "w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.667rem)] lg:w-[calc(25%-0.75rem)]",
+    active ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/40" : "border-line/80"
+  );
+
+  const inner = (
+    <div className="relative aspect-[9/16] w-full bg-green-100">
+      {media ? (
+        <Image
+          src={media.url || media.thumbUrl}
+          alt={post.caption}
+          fill
+          sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+      ) : (
+        <div className="grid h-full place-items-center text-green-700/40">사진</div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+
+      <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-bold text-white">
+        <span className="h-1.5 w-1.5 rounded-full bg-white" /> LIVE
+      </span>
+      {post.media.length > 1 && (
+        <span className="absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+          +{post.media.length - 1}
+        </span>
+      )}
+
+      <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
+          <MapPin size={12} className="shrink-0" />
+          <span className="truncate">{post.villageName}</span>
+          <span className="text-white/50">·</span>
+          <time className="shrink-0 text-white/70">{timeAgo(post.publishedAt)}</time>
+        </div>
+        <p className="mt-1 font-display text-sm leading-snug line-clamp-2 drop-shadow">
+          {post.caption}
+        </p>
+      </div>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={() => onClick(post)}
+        onMouseEnter={() => onActivate?.(post.villageId)}
+        onMouseLeave={() => onDeactivate?.()}
+        className={cn(shared, "text-left cursor-pointer")}
+      >
+        {inner}
+      </button>
+    );
+  }
+
   return (
     <Link
       href={`/v/${post.villageSlug}#feed`}
       onMouseEnter={() => onActivate?.(post.villageId)}
       onMouseLeave={() => onDeactivate?.()}
-      className={cn(
-        "group relative block shrink-0 snap-start overflow-hidden rounded-[var(--radius-blob)] border shadow-[var(--shadow-card)] transition-all",
-        "w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.667rem)] lg:w-[calc(25%-0.75rem)]",
-        active ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/40" : "border-line/80"
-      )}
+      className={shared}
     >
-      <div className="relative aspect-[9/16] w-full bg-green-100">
-        {media ? (
-          <Image
-            src={media.url || media.thumbUrl}
-            alt={post.caption}
-            fill
-            sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="grid h-full place-items-center text-green-700/40">사진</div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
-
-        <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-bold text-white">
-          <span className="h-1.5 w-1.5 rounded-full bg-white" /> LIVE
-        </span>
-        {post.media.length > 1 && (
-          <span className="absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
-            +{post.media.length - 1}
-          </span>
-        )}
-
-        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
-            <MapPin size={12} className="shrink-0" />
-            <span className="truncate">{post.villageName}</span>
-            <span className="text-white/50">·</span>
-            <time className="shrink-0 text-white/70">{timeAgo(post.publishedAt)}</time>
-          </div>
-          <p className="mt-1 font-display text-sm leading-snug line-clamp-2 drop-shadow">
-            {post.caption}
-          </p>
-        </div>
-      </div>
+      {inner}
     </Link>
   );
 }

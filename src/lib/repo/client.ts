@@ -113,7 +113,12 @@ export function listenGlobalFeed(
   );
   return onSnapshot(
     q,
-    (snap) => cb(snap.docs.map((d) => mapPostDoc(d.id, d.data()))),
+    { includeMetadataChanges: true },
+    (snap) => {
+      if (!snap.metadata.fromCache) {
+        cb(snap.docs.map((d) => mapPostDoc(d.id, d.data())));
+      }
+    },
     (err) => {
       // 복합 인덱스(visibility+publishedAt) 미배포 시 실시간 갱신은 생략하고
       // 서버 SSR 초기 데이터를 유지한다. 인덱스 배포(pnpm deploy:rules) 후 활성화.
