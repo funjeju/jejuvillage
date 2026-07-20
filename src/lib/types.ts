@@ -12,6 +12,7 @@ export type Role = "guest" | "village_admin" | "platform_admin";
 /** 마을 홈 섹션(모듈) 키 — 빌더에서 재배치/삭제 대상 */
 export type SectionKey =
   | "hero"
+  | "poi_map"
   | "story"
   | "feed"
   | "products"
@@ -27,6 +28,7 @@ export interface SectionLayout {
 // 마스코트는 별도 섹션이 아니라 히어로 오버레이로 노출 (mascot 키는 저장된 레이아웃 호환용으로만 유지)
 export const DEFAULT_LAYOUT: SectionLayout[] = [
   { key: "hero", enabled: true },
+  { key: "poi_map", enabled: true },
   { key: "story", enabled: true },
   { key: "feed", enabled: true },
   { key: "products", enabled: true },
@@ -35,6 +37,7 @@ export const DEFAULT_LAYOUT: SectionLayout[] = [
 
 export const SECTION_META: Record<SectionKey, { label: string; desc: string; fixed?: boolean }> = {
   hero: { label: "대표 히어로", desc: "대표 이미지 + 마을명 + 한줄 소개", fixed: true },
+  poi_map: { label: "마을 지도", desc: "식당·카페·관광지·체험 POI 지도" },
   story: { label: "마을 이야기", desc: "역사·설화·자원 스토리" },
   feed: { label: "소식 피드", desc: "실시간 사진 소식" },
   products: { label: "체험상품", desc: "예약 가능한 체험 카드" },
@@ -158,6 +161,22 @@ export interface ProductImage {
   thumbUrl: string;
 }
 
+/** POI 카테고리 */
+export type PoiCategory = "restaurant" | "cafe" | "experience" | "tourist_spot";
+
+/** 마을 주변 관심 장소 (POI) */
+export interface Poi {
+  id: string;
+  villageId: string;
+  name: string;
+  category: PoiCategory;
+  lat: number;
+  lng: number;
+  description?: string;
+  imageUrl?: string;
+  address?: string;
+}
+
 /** 예약 */
 export interface Booking {
   id: string;
@@ -269,5 +288,6 @@ export interface VillageBundle {
   stories: VillageStory[];
   products: Product[];
   posts: FeedPost[];
+  pois: Poi[];
   reportEnabled: boolean;
 }

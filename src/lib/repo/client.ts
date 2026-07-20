@@ -28,6 +28,8 @@ import type {
   Booking,
   BookingStatus,
   VillageTheme,
+  Poi,
+  PoiCategory,
 } from "@/lib/types";
 import type { FeedPostInput, ProductInput, ThemeInput } from "@/lib/schemas";
 
@@ -441,4 +443,54 @@ export async function getThemeOnce(villageId: string): Promise<VillageTheme | nu
   const snap = await getDoc(doc(clientDb(), paths.themeDoc(villageId)));
   if (!snap.exists()) return null;
   return { villageId, ...(snap.data() as Omit<VillageTheme, "villageId">) };
+}
+
+// ── POI (장소) ──────────────────────────────────────────────────────────
+
+export async function createPoi(
+  villageId: string,
+  input: Omit<Poi, "id" | "villageId">
+): Promise<string> {
+  const ref = await addDoc(collection(clientDb(), paths.pois(villageId)), {
+    villageId,
+    ...input,
+  });
+  return ref.id;
+}
+
+export async function updatePoi(
+  villageId: string,
+  poiId: string,
+  input: Partial<Omit<Poi, "id" | "villageId">>
+) {
+  await updateDoc(doc(clientDb(), `${paths.pois(villageId)}/${poiId}`), input);
+}
+
+export async function deletePoi(villageId: string, poiId: string) {
+  await deleteDoc(doc(clientDb(), `${paths.pois(villageId)}/${poiId}`));
+}
+
+export function listenPois(
+  villageId: string,
+  cb: (pois: Poi[]) => void
+): Unsubscribe {
+  const q = query(collection(clientDb(), paths.pois(villageId)));
+  return onSnapshot(q, (snap) => {
+    cb(
+      snap.docs.map((d) => {
+        const x = d.data();
+        return {
+          id: d.id,
+          villageId: x.villageId ?? villageId,
+          name: x.name ?? "",
+          category: (x.category as PoiCategory) ?? "tourist_spot",
+          lat: x.lat ?? 0,
+          lng: x.lng ?? 0,
+          description: x.description ?? "",
+          imageUrl: x.imageUrl ?? "",
+          address: x.address ?? "",
+        } as Poi;
+      })
+    );
+  });
 }

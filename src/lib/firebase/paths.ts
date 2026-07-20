@@ -9,6 +9,7 @@ export const paths = {
   feedPosts: (vid: string) => `villages/${vid}/feed_posts`,
   products: (vid: string) => `villages/${vid}/products`,
   bookings: (vid: string) => `villages/${vid}/bookings`,
+  pois: (vid: string) => `villages/${vid}/pois`,
   theme: (vid: string) => `villages/${vid}/theme`,
   themeDocId: "main",
   themeDoc: (vid: string) => `villages/${vid}/theme/main`,

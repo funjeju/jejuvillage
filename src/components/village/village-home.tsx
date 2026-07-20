@@ -11,6 +11,7 @@ import { LiveFeedCard } from "@/components/feed/feed-card";
 import { ProductCard } from "@/components/product/product-card";
 import { BgmPlayer } from "@/components/village/bgm-player";
 import { LocationMap } from "@/components/map/location-map";
+import { PoiMap } from "@/components/map/poi-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 import {
   listenVillageFeed,
@@ -119,6 +120,7 @@ export function VillageHome({
   // 마스코트는 별도 섹션 없이 히어로 오버레이로만 노출. 디바이더도 사용하지 않음(깔끔하게).
   const sections: Partial<Record<SectionKey, React.ReactNode>> = {
     hero: <HeroSection key="hero" bundle={bundle} isManager={isManager} />,
+    poi_map: <PoiMapSection key="poi_map" bundle={bundle} />,
     story: <StorySection key="story" bundle={bundle} isManager={isManager} />,
     feed: <FeedSection key="feed" posts={posts} />,
     products: <ProductsSection key="products" bundle={bundle} />,
@@ -432,6 +434,25 @@ function FeedSection({ posts }: { posts: FeedPost[] }) {
           아직 올라온 소식이 없어요.
         </p>
       )}
+    </Container>
+  );
+}
+
+/* ── POI 지도 섹션 ── */
+function PoiMapSection({ bundle }: { bundle: VillageBundle }) {
+  const { village, pois } = bundle;
+  return (
+    <Container className="py-12">
+      <SectionHeading
+        eyebrow="🗺️ 마을 둘러보기"
+        title={`${village.name} 주변 지도`}
+        desc="마을 주변의 식당, 카페, 체험, 관광지를 지도에서 확인하세요."
+      />
+      <PoiMap
+        center={[village.lat, village.lng]}
+        villageName={village.name}
+        pois={pois}
+      />
     </Container>
   );
 }

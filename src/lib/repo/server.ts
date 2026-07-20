@@ -12,6 +12,7 @@ import type {
   VillageBundle,
   Booking,
   VillageReport,
+  Poi,
 } from "@/lib/types";
 import type { DocumentData } from "firebase-admin/firestore";
 
@@ -71,6 +72,20 @@ function mapTheme(vid: string, d: DocumentData | undefined): VillageTheme | null
     mascotDesc: d.mascotDesc ?? null,
     bgmUrl: d.bgmUrl ?? null,
     bgmLoop: d.bgmLoop ?? true,
+  };
+}
+
+function mapPoi(id: string, villageId: string, d: DocumentData): Poi {
+  return {
+    id,
+    villageId,
+    name: d.name ?? "",
+    category: d.category ?? "tourist_spot",
+    lat: d.lat ?? 0,
+    lng: d.lng ?? 0,
+    description: d.description ?? "",
+    imageUrl: d.imageUrl ?? "",
+    address: d.address ?? "",
   };
 }
 
@@ -311,7 +326,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
     const db = adminDb();
     const vid = village.id;
 
-    const [themeSnap, storiesSnap, productsSnap, postsSnap, reportSnap] = await Promise.all([
+    const [themeSnap, storiesSnap, productsSnap, postsSnap, reportSnap, poisSnap] = await Promise.all([
       db.doc(paths.themeDoc(vid)).get(),
       db.collection(paths.stories(vid)).orderBy("order", "asc").get(),
       db
@@ -324,6 +339,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
         .limit(30)
         .get(),
       db.doc(paths.reportDoc(vid)).get(),
+      db.collection(paths.pois(vid)).get(),
     ]);
 
     return {
@@ -334,6 +350,7 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
         .map((d) => mapProduct(d.id, d.data()))
         .sort((a, b) => b.createdAt - a.createdAt),
       posts: postsSnap.docs.map((d) => mapPost(d.id, d.data())),
+      pois: poisSnap.docs.map((d) => mapPoi(d.id, vid, d.data())),
       reportEnabled: reportSnap.data()?.enabled === true,
     } satisfies VillageBundle;
   }, null);
