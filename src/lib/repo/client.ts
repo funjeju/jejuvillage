@@ -142,6 +142,9 @@ function mapPostDoc(id: string, d: Record<string, unknown>): FeedPost {
     media: (d.media as FeedPost["media"]) ?? [],
     publishedAt: toMillis(d.publishedAt as Timestamp),
     authorId: (d.authorId as string) ?? "",
+    isNews: (d.isNews as boolean) ?? false,
+    newsUrl: (d.newsUrl as string) ?? "",
+    newsTitle: (d.newsTitle as string) ?? "",
   };
 }
 

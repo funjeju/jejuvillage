@@ -115,6 +115,10 @@ export interface FeedPost {
   media: FeedMedia[];
   publishedAt: number;
   authorId: string;
+  /** 뉴스 자동수집 포스트 여부 */
+  isNews?: boolean;
+  newsUrl?: string;
+  newsTitle?: string;
 }
 
 export interface FeedMedia {

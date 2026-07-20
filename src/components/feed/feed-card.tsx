@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin } from "lucide-react";
+import { MapPin, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 import type { FeedPost } from "@/lib/types";
@@ -174,9 +174,13 @@ export function FeedCard({
   active?: boolean;
 }) {
   const media = post.media[0];
+  const isNews = post.isNews && post.newsUrl;
+  const href = isNews ? post.newsUrl! : `/v/${post.villageSlug}#feed`;
+
   return (
     <Link
-      href={`/v/${post.villageSlug}#feed`}
+      href={href}
+      {...(isNews ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       onMouseEnter={() => onActivate?.(post.villageId)}
       onMouseLeave={() => onDeactivate?.()}
       className={cn(
@@ -184,29 +188,38 @@ export function FeedCard({
         active ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/40" : "border-line/80"
       )}
     >
-      <div className="relative aspect-square bg-green-100">
-        {media ? (
-          <Image
-            src={media.thumbUrl || media.url}
-            alt={post.caption}
-            fill
-            sizes="(max-width:640px) 50vw, 280px"
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="grid h-full place-items-center text-green-700/40">사진</div>
-        )}
-        {post.isPinned && (
-          <span className="absolute top-2 right-2 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] text-[11px] font-bold px-2 py-0.5">
-            📌 고정
+      {isNews && !media ? (
+        <div className="relative aspect-[3/2] bg-gradient-to-br from-blue-50 to-blue-100 grid place-items-center">
+          <span className="text-4xl">📰</span>
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">
+            뉴스
           </span>
-        )}
-        {post.media.length > 1 && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/55 text-white text-[11px] font-semibold px-2 py-0.5">
-            +{post.media.length - 1}
-          </span>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="relative aspect-square bg-green-100">
+          {media ? (
+            <Image
+              src={media.thumbUrl || media.url}
+              alt={post.caption}
+              fill
+              sizes="(max-width:640px) 50vw, 280px"
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          ) : (
+            <div className="grid h-full place-items-center text-green-700/40">사진</div>
+          )}
+          {post.isPinned && (
+            <span className="absolute top-2 right-2 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] text-[11px] font-bold px-2 py-0.5">
+              📌 고정
+            </span>
+          )}
+          {post.media.length > 1 && (
+            <span className="absolute bottom-2 right-2 rounded-full bg-black/55 text-white text-[11px] font-semibold px-2 py-0.5">
+              +{post.media.length - 1}
+            </span>
+          )}
+        </div>
+      )}
       <div className="p-3">
         <div className="flex items-center justify-between text-xs">
           <span className="inline-flex items-center gap-1 font-semibold text-green-700">
@@ -215,6 +228,11 @@ export function FeedCard({
           <time className="text-ink-500">{timeAgo(post.publishedAt)}</time>
         </div>
         <p className="mt-1.5 text-sm text-ink-900 line-clamp-2">{post.caption}</p>
+        {isNews && (
+          <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 font-semibold">
+            기사 보기 <ExternalLink size={11} />
+          </span>
+        )}
       </div>
     </Link>
   );

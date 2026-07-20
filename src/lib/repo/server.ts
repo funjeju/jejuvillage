@@ -102,6 +102,9 @@ function mapPost(id: string, d: DocumentData): FeedPost {
     media: d.media ?? [],
     publishedAt: toMillis(d.publishedAt),
     authorId: d.authorId ?? "",
+    isNews: d.isNews ?? false,
+    newsUrl: d.newsUrl ?? "",
+    newsTitle: d.newsTitle ?? "",
   };
 }
 
@@ -354,6 +357,16 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
       reportEnabled: reportSnap.data()?.enabled === true,
     } satisfies VillageBundle;
   }, null);
+}
+
+export function getPublishedVillages(): Promise<Village[]> {
+  return safe(async () => {
+    const snap = await adminDb()
+      .collection(paths.villages)
+      .where("status", "==", "published")
+      .get();
+    return snap.docs.map((d) => mapVillage(d.id, d.data()));
+  }, []);
 }
 
 async function publishedVillageIds(): Promise<string[]> {
