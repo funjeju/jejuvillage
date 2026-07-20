@@ -13,6 +13,7 @@ import type {
   Booking,
   VillageReport,
   Poi,
+  DailyBriefing,
 } from "@/lib/types";
 import type { DocumentData } from "firebase-admin/firestore";
 
@@ -443,4 +444,52 @@ export function getBookings(villageId: string): Promise<Booking[]> {
       .get();
     return snap.docs.map((d) => mapBooking(d.id, d.data()));
   }, []);
+}
+
+// ── 데일리 브리핑 ──────────────────────────────────────────────
+
+/** 최신 브리핑 1건 */
+export function getLatestBriefing(): Promise<DailyBriefing | null> {
+  return safe(async () => {
+    const snap = await adminDb()
+      .collection(paths.briefings)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return mapBriefing(d.id, d.data());
+  }, null);
+}
+
+/** 브리핑 목록 (페이지네이션) */
+export function getBriefings(max = 30): Promise<DailyBriefing[]> {
+  return safe(async () => {
+    const snap = await adminDb()
+      .collection(paths.briefings)
+      .orderBy("createdAt", "desc")
+      .limit(max)
+      .get();
+    return snap.docs.map((d) => mapBriefing(d.id, d.data()));
+  }, []);
+}
+
+/** 특정 날짜 브리핑 */
+export function getBriefingByDate(date: string): Promise<DailyBriefing | null> {
+  return safe(async () => {
+    const d = await adminDb().doc(`${paths.briefings}/${date}`).get();
+    if (!d.exists) return null;
+    return mapBriefing(d.id, d.data()!);
+  }, null);
+}
+
+function mapBriefing(id: string, d: DocumentData): DailyBriefing {
+  return {
+    id,
+    date: d.date ?? id,
+    headline: d.headline ?? "",
+    governmentNews: d.governmentNews ?? [],
+    villageNews: d.villageNews ?? [],
+    createdAt: toMillis(d.createdAt),
+  };
 }

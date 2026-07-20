@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Search, Newspaper, Compass, Map as MapIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { Search, Newspaper, Compass, Map as MapIcon, ChevronLeft, ChevronRight, Building2, MapPin, ExternalLink } from "lucide-react";
 import { Container, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Mascot } from "@/components/decor/mascot";
@@ -14,16 +15,18 @@ import { JejuMap } from "@/components/map/jeju-map";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 import { listenGlobalFeed } from "@/lib/repo/client";
 import { FeedLightbox } from "@/components/feed/feed-lightbox";
-import type { VillageSummary, FeedPost, Product } from "@/lib/types";
+import type { VillageSummary, FeedPost, Product, DailyBriefing } from "@/lib/types";
 
 export function HomeClient({
   villages,
   initialPosts,
   products,
+  latestBriefing,
 }: {
   villages: VillageSummary[];
   initialPosts: FeedPost[];
   products: Product[];
+  latestBriefing: DailyBriefing | null;
 }) {
   const router = useRouter();
   const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
@@ -125,6 +128,25 @@ export function HomeClient({
           <EmptyHint icon={<Newspaper />} text="아직 올라온 소식이 없어요. 첫 소식을 기다리는 중!" />
         )}
       </Container>
+
+      {/* ── 데일리 제주마을 브리핑 ── */}
+      {latestBriefing && (
+        <section className="bg-gradient-to-b from-blue-50/40 to-white py-12">
+          <Container>
+            <SectionHeading
+              eyebrow="📰 데일리 브리핑"
+              title="오늘의 제주마을 소식"
+              desc="제주도청 소식과 마을별 뉴스를 매일 자동으로 모아드려요."
+              action={
+                <ButtonLink href="/briefing" variant="soft" size="sm">
+                  <Newspaper size={16} /> 전체 브리핑
+                </ButtonLink>
+              }
+            />
+            <BriefingPreview briefing={latestBriefing} />
+          </Container>
+        </section>
+      )}
 
       {/* ── 지금 예약 가능한 체험 (구매 가능 상품) ── */}
       <Container className="py-12">
@@ -255,6 +277,100 @@ function FeedSlider({
           <ChevronRight size={22} />
         </button>
       )}
+    </div>
+  );
+}
+
+function BriefingPreview({ briefing }: { briefing: DailyBriefing }) {
+  const [y, m, d] = briefing.date.split("-").map(Number);
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
+  const dt = new Date(y, m - 1, d);
+  const dateLabel = `${m}월 ${d}일 (${days[dt.getDay()]})`;
+
+  const govItems = briefing.governmentNews.slice(0, 3);
+  const villageItems = briefing.villageNews.slice(0, 4);
+
+  return (
+    <div className="rounded-2xl border border-line/80 bg-white shadow-[var(--shadow-card)] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-line/60 bg-gradient-to-r from-blue-50 to-white px-5 py-3">
+        <div>
+          <time className="text-xs font-semibold text-blue-600">{dateLabel}</time>
+          <h3 className="font-display text-base text-ink-900 mt-0.5">{briefing.headline}</h3>
+        </div>
+        <Link
+          href="/briefing"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+        >
+          더보기 <ChevronRight size={14} />
+        </Link>
+      </div>
+
+      <div className="divide-y divide-line/40">
+        {govItems.length > 0 && (
+          <div className="px-5 py-3.5">
+            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-ink-400 mb-2">
+              <Building2 size={12} /> 도청 소식
+            </h4>
+            <ul className="space-y-2">
+              {govItems.map((item, i) => (
+                <li key={i}>
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-start gap-2 rounded-lg p-1.5 -mx-1.5 hover:bg-blue-50/60 transition-colors"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900 line-clamp-1 group-hover:text-blue-700 transition-colors">
+                        {item.title}
+                      </span>
+                      {item.summary && (
+                        <span className="block mt-0.5 text-xs text-ink-500 line-clamp-1">{item.summary}</span>
+                      )}
+                    </span>
+                    <ExternalLink size={12} className="shrink-0 mt-1 text-ink-300 group-hover:text-blue-600" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {villageItems.length > 0 && (
+          <div className="px-5 py-3.5">
+            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-ink-400 mb-2">
+              <MapPin size={12} /> 마을 소식
+            </h4>
+            <ul className="space-y-2">
+              {villageItems.map((item, i) => (
+                <li key={i}>
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-start gap-2 rounded-lg p-1.5 -mx-1.5 hover:bg-green-50/60 transition-colors"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900 line-clamp-1 group-hover:text-green-700 transition-colors">
+                        {item.title}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-400">
+                        {item.villageName && (
+                          <span className="font-semibold text-green-700">{item.villageName}</span>
+                        )}
+                        {item.summary && (
+                          <span className="line-clamp-1">{item.summary}</span>
+                        )}
+                      </span>
+                    </span>
+                    <ExternalLink size={12} className="shrink-0 mt-1 text-ink-300 group-hover:text-green-600" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

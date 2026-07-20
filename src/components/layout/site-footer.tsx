@@ -44,6 +44,7 @@ export function SiteFooter() {
               <p className="font-bold text-white">서비스</p>
               <Link href="/villages" className="block text-green-100/80 hover:text-white">마을찾기</Link>
               <Link href="/feed" className="block text-green-100/80 hover:text-white">전체 소식</Link>
+              <Link href="/briefing" className="block text-green-100/80 hover:text-white">데일리 브리핑</Link>
             </div>
             <div className="space-y-2.5">
               <p className="font-bold text-white">마을</p>

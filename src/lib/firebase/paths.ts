@@ -11,6 +11,7 @@ export const paths = {
   bookings: (vid: string) => `villages/${vid}/bookings`,
   pois: (vid: string) => `villages/${vid}/pois`,
   newsLog: "news_log",
+  briefings: "briefings",
   theme: (vid: string) => `villages/${vid}/theme`,
   themeDocId: "main",
   themeDoc: (vid: string) => `villages/${vid}/theme/main`,

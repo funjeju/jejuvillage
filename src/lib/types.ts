@@ -285,6 +285,26 @@ export interface VillageReport {
   updatedAt: number;
 }
 
+/** 데일리 브리핑 뉴스 아이템 */
+export interface BriefingNewsItem {
+  title: string;
+  summary: string;
+  link: string;
+  source: "government" | "village";
+  villageName?: string;
+  villageSlug?: string;
+}
+
+/** 데일리 제주마을 브리핑 */
+export interface DailyBriefing {
+  id: string;
+  date: string; // YYYY-MM-DD
+  headline: string;
+  governmentNews: BriefingNewsItem[];
+  villageNews: BriefingNewsItem[];
+  createdAt: number;
+}
+
 /** 마을 홈 템플릿 렌더에 필요한 데이터 묶음 */
 export interface VillageBundle {
   village: Village;

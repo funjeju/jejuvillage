@@ -22,6 +22,9 @@ export function SiteHeader() {
           <Link href="/feed" className="px-2 sm:px-3 py-2 rounded-full whitespace-nowrap hover:bg-green-100">
             소식
           </Link>
+          <Link href="/briefing" className="hidden sm:block px-3 py-2 rounded-full whitespace-nowrap hover:bg-blue-50 text-blue-700">
+            브리핑
+          </Link>
           <HeaderAuth />
         </nav>
       </Container>
