@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Wand2, ExternalLink, Globe } from "lucide-react";
-import { useAdmin } from "@/lib/admin/admin-context";
+import type { AdminVillage } from "@/lib/admin/admin-context";
 import { PageTitle, Panel, adminField, adminLabel } from "@/components/admin/ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import type { LandingBlueprint } from "@/lib/types";
@@ -10,9 +10,9 @@ import type { LandingBlueprint } from "@/lib/types";
 /**
  * 참조 URL → AI 랜딩페이지 생성 콘솔.
  * 참조 사이트의 스크린샷을 비전 AI가 분석해 마을 자료로 채운 랜딩을 만든다.
+ * 대상 마을은 prop 으로 받는다(/admin 콘솔·독립 /landing 페이지 공용).
  */
-export function LandingEditor() {
-  const { village } = useAdmin();
+export function LandingEditor({ village }: { village: AdminVillage }) {
   const [refUrl, setRefUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
