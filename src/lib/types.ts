@@ -305,6 +305,71 @@ export interface DailyBriefing {
   createdAt: number;
 }
 
+/**
+ * AI 랜딩페이지 (참조 URL 기반)
+ * 참조 URL의 스크린샷을 비전 AI가 분석해 "디자인 감각(팔레트·레이아웃·섹션 구성)"을
+ * 추출하고, 마을 자료를 그 골격에 채워 넣은 결과물. villages/{vid}/landing/main 에 저장.
+ */
+export type LandingSectionType =
+  | "hero"
+  | "features"
+  | "story"
+  | "gallery"
+  | "stats"
+  | "testimonial"
+  | "cta"
+  | "footer";
+
+export interface LandingItem {
+  title?: string;
+  body?: string;
+  /** lucide-react 아이콘 이름(소문자, 예: "map-pin") 또는 이모지 */
+  icon?: string;
+  imageUrl?: string;
+  value?: string; // stats 섹션용 수치(예: "300년")
+}
+
+export interface LandingSection {
+  type: LandingSectionType;
+  /** 참조 디자인에서 추론한 레이아웃 힌트 (예: "fullscreen-left", "3-col-cards", "zigzag", "centered") */
+  layout?: string;
+  heading?: string;
+  subheading?: string;
+  body?: string;
+  items?: LandingItem[];
+  imageUrl?: string;
+  /** 섹션 개별 배경/글자색 (HEX) — 없으면 palette 사용 */
+  bgColor?: string;
+  textColor?: string;
+  align?: "left" | "center" | "right";
+  ctaLabel?: string;
+  ctaHref?: string;
+}
+
+export interface LandingPalette {
+  bg: string;
+  text: string;
+  accent: string;
+  primary: string;
+}
+
+export interface LandingBlueprint {
+  villageId: string;
+  /** 참조한 원본 URL (추적/교체용) */
+  refUrl: string;
+  /** 스크린샷 이미지 URL (외부 스크린샷 API 결과) */
+  screenshotUrl?: string | null;
+  /** 비전 AI가 서술한 참조 디자인 특징 (디버깅/재생성 참고용) */
+  designNote?: string;
+  palette: LandingPalette;
+  /** 폰트 무드 힌트 (예: "modern-sans", "elegant-serif", "rounded-friendly") */
+  fontMood?: string;
+  sections: LandingSection[];
+  source: "ai" | "fallback";
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** 마을 홈 템플릿 렌더에 필요한 데이터 묶음 */
 export interface VillageBundle {
   village: Village;

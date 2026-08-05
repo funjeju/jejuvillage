@@ -14,6 +14,9 @@ import type {
   VillageReport,
   Poi,
   DailyBriefing,
+  LandingBlueprint,
+  LandingSection,
+  LandingPalette,
 } from "@/lib/types";
 import type { DocumentData } from "firebase-admin/firestore";
 
@@ -357,6 +360,32 @@ export function getVillageBundle(slug: string): Promise<VillageBundle | null> {
       pois: poisSnap.docs.map((d) => mapPoi(d.id, vid, d.data())),
       reportEnabled: reportSnap.data()?.enabled === true,
     } satisfies VillageBundle;
+  }, null);
+}
+
+/** AI 랜딩페이지 blueprint (villageId === slug) */
+export function getLandingBlueprint(slug: string): Promise<LandingBlueprint | null> {
+  return safe(async () => {
+    const doc = await adminDb().doc(paths.landingDoc(slug)).get();
+    const d = doc.data();
+    if (!d) return null;
+    return {
+      villageId: slug,
+      refUrl: d.refUrl ?? "",
+      screenshotUrl: d.screenshotUrl ?? null,
+      designNote: d.designNote ?? "",
+      palette: (d.palette ?? {
+        bg: "#ffffff",
+        text: "#1a1a1a",
+        accent: "#e14b5a",
+        primary: "#3e8e41",
+      }) as LandingPalette,
+      fontMood: d.fontMood ?? "modern-sans",
+      sections: (Array.isArray(d.sections) ? d.sections : []) as LandingSection[],
+      source: d.source ?? "ai",
+      createdAt: toMillis(d.createdAt),
+      updatedAt: toMillis(d.updatedAt),
+    } satisfies LandingBlueprint;
   }, null);
 }
 

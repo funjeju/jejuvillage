@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   LayoutDashboard,
   Wand2,
+  Sparkles,
   Camera,
   Package,
   CalendarCheck,
@@ -28,6 +29,7 @@ import {
 const NAV = [
   { href: "/admin", label: "대시보드", icon: LayoutDashboard, exact: true },
   { href: "/admin/homepage", label: "홈페이지 만들기", icon: Wand2 },
+  { href: "/admin/landing", label: "랜딩페이지 만들기", icon: Sparkles },
   { href: "/admin/feed", label: "소식 발행", icon: Camera },
   { href: "/admin/products", label: "체험상품", icon: Package },
   { href: "/admin/bookings", label: "예약 관리", icon: CalendarCheck },
