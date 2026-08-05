@@ -354,7 +354,14 @@ export interface LandingPalette {
 }
 
 export interface LandingBlueprint {
+  /** 마을 종속 랜딩이면 마을 slug, 독립 랜딩이면 랜딩 slug */
   villageId: string;
+  /** 독립 랜딩 식별용 slug (독립 모드에서만) */
+  slug?: string;
+  /** 랜딩 제목 (독립 모드: 사용자 입력) */
+  name?: string;
+  /** 소유자 uid (독립 모드) */
+  ownerUid?: string;
   /** 참조한 원본 URL (추적/교체용) */
   refUrl: string;
   /** 스크린샷 이미지 URL (외부 스크린샷 API 결과) */

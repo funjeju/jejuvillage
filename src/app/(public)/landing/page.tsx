@@ -4,28 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { Sprout, Loader2, AlertCircle, LogOut } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context";
-import { LandingEditor } from "@/components/admin/landing-editor";
-import type { AdminVillage } from "@/lib/admin/admin-context";
+import { StandaloneBuilder } from "@/components/landing/standalone-builder";
 
 /**
- * 독립 랜딩페이지 생성 진입점 (도메인/landing).
- * /admin 콘솔의 온보딩 게이트에 막히지 않도록 자체적으로
- * 로그인 → 대상 마을 선택 → 랜딩 에디터를 렌더한다.
+ * 독립 랜딩페이지 빌더 진입점 (도메인/landing).
+ * 마을 개설과 무관하게, 로그인만 하면 이름·소개·참조 URL 로 랜딩을 만든다.
  */
 function LandingInner() {
-  const {
-    user,
-    loading,
-    sessionSynced,
-    managedVillages,
-    role,
-    configured,
-    signInWithGoogle,
-    signOut,
-  } = useAuth();
+  const { user, loading, sessionSynced, configured, signInWithGoogle, signOut } =
+    useAuth();
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
 
   async function onGoogle() {
     setError(null);
@@ -39,7 +28,6 @@ function LandingInner() {
     }
   }
 
-  // ── 환경변수 미설정 ──
   if (!configured) {
     return (
       <Center>
@@ -51,7 +39,6 @@ function LandingInner() {
     );
   }
 
-  // ── 인증 확인 중 ──
   if (loading) {
     return (
       <Center>
@@ -61,7 +48,7 @@ function LandingInner() {
     );
   }
 
-  // ── 미로그인 → 여기서 바로 로그인 ──
+  // 미로그인 → 여기서 바로 로그인 (마을 필요 없음)
   if (!user || !sessionSynced) {
     return (
       <Center>
@@ -73,7 +60,7 @@ function LandingInner() {
             <span className="font-display text-xl">랜딩페이지 만들기</span>
           </div>
           <p className="mt-3 text-center text-sm text-ink-500">
-            구글 계정으로 로그인하면 참조 URL 기반 랜딩을 만들 수 있어요.
+            구글 계정으로 로그인하면 참조 URL 기반 랜딩을 바로 만들 수 있어요.
           </p>
           <button
             type="button"
@@ -94,34 +81,7 @@ function LandingInner() {
     );
   }
 
-  // ── 로그인은 됐지만 대상 마을이 없음 ──
-  if (managedVillages.length === 0) {
-    return (
-      <Center>
-        <div className="w-full max-w-md rounded-[var(--radius-blob)] border border-line/80 bg-white p-6 text-center shadow-[var(--shadow-card)]">
-          <h1 className="font-display text-xl">아직 마을이 없어요</h1>
-          <p className="mt-2 text-sm text-ink-500">
-            랜딩페이지는 마을 자료(소개·이미지·색)를 재료로 만들어요.
-            {role === "platform_admin"
-              ? " 플랫폼 관리자 계정에는 직접 관리하는 마을이 없습니다. 마을 운영자 계정으로 로그인하거나 마을을 개설해 주세요."
-              : " 먼저 마을을 개설하면 이 화면에서 랜딩을 만들 수 있어요."}
-          </p>
-          <Link
-            href="/admin"
-            className="mt-5 inline-block rounded-full bg-green-700 px-6 py-2.5 text-sm font-semibold text-white"
-          >
-            마을 개설하러 가기
-          </Link>
-          <SignOutRow onSignOut={signOut} />
-        </div>
-      </Center>
-    );
-  }
-
-  // ── 정상: 대상 마을 선택 + 에디터 ──
-  const villageId = selected ?? managedVillages[0];
-  const village: AdminVillage = { id: villageId, slug: villageId, name: villageId };
-
+  // 로그인 완료 → 마을 여부와 무관하게 바로 빌더
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-12">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -135,28 +95,7 @@ function LandingInner() {
           <LogOut size={16} /> 로그아웃
         </button>
       </div>
-
-      {managedVillages.length > 1 && (
-        <div className="mb-5 rounded-xl border border-line bg-white p-4">
-          <label className="mb-1.5 block text-sm font-semibold text-ink-900">
-            어느 마을의 랜딩을 만들까요?
-          </label>
-          <select
-            value={villageId}
-            onChange={(e) => setSelected(e.target.value)}
-            className="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-green-600"
-          >
-            {managedVillages.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* 마을 선택이 바뀌면 에디터 상태를 초기화 */}
-      <LandingEditor key={villageId} village={village} />
+      <StandaloneBuilder />
     </div>
   );
 }
@@ -166,17 +105,6 @@ function Center({ children }: { children: React.ReactNode }) {
     <div className="grid min-h-dvh place-items-center bg-gradient-to-b from-sky-50 to-green-50 p-4">
       <div className="flex flex-col items-center gap-3">{children}</div>
     </div>
-  );
-}
-
-function SignOutRow({ onSignOut }: { onSignOut: () => void }) {
-  return (
-    <button
-      onClick={onSignOut}
-      className="mt-4 flex items-center justify-center gap-1.5 text-xs text-ink-400 hover:text-green-700 mx-auto"
-    >
-      <LogOut size={14} /> 다른 계정으로 로그인
-    </button>
   );
 }
 

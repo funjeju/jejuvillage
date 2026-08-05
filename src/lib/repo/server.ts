@@ -389,6 +389,35 @@ export function getLandingBlueprint(slug: string): Promise<LandingBlueprint | nu
   }, null);
 }
 
+/** 독립 랜딩페이지 (landings/{slug}) */
+export function getLandingProject(slug: string): Promise<LandingBlueprint | null> {
+  return safe(async () => {
+    const doc = await adminDb().doc(paths.landingProject(slug)).get();
+    const d = doc.data();
+    if (!d) return null;
+    return {
+      villageId: d.villageId ?? slug,
+      slug: d.slug ?? slug,
+      name: d.name ?? "",
+      ownerUid: d.ownerUid ?? "",
+      refUrl: d.refUrl ?? "",
+      screenshotUrl: d.screenshotUrl ?? null,
+      designNote: d.designNote ?? "",
+      palette: (d.palette ?? {
+        bg: "#ffffff",
+        text: "#1a1a1a",
+        accent: "#e14b5a",
+        primary: "#3e8e41",
+      }) as LandingPalette,
+      fontMood: d.fontMood ?? "modern-sans",
+      sections: (Array.isArray(d.sections) ? d.sections : []) as LandingSection[],
+      source: d.source ?? "ai",
+      createdAt: toMillis(d.createdAt),
+      updatedAt: toMillis(d.updatedAt),
+    } satisfies LandingBlueprint;
+  }, null);
+}
+
 export function getPublishedVillages(): Promise<Village[]> {
   return safe(async () => {
     const snap = await adminDb()

@@ -16,8 +16,11 @@ export const paths = {
   themeDocId: "main",
   themeDoc: (vid: string) => `villages/${vid}/theme/main`,
   reportDoc: (vid: string) => `villages/${vid}/report/main`,
-  /** AI 랜딩페이지 blueprint (참조 URL 기반) — 단일 문서 */
+  /** AI 랜딩페이지 blueprint (참조 URL 기반) — 마을 종속 단일 문서 */
   landingDoc: (vid: string) => `villages/${vid}/landing/main`,
+  /** 독립 랜딩페이지 (마을과 무관) — 최상위 컬렉션 */
+  landings: "landings",
+  landingProject: (id: string) => `landings/${id}`,
   mediaAssets: "media_assets",
   users: "users",
 } as const;
